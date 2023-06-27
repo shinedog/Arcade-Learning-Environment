@@ -17,40 +17,40 @@
 //============================================================================
 
 #include <time.h>
-#include "Random.hxx"
-#include "Serializer.hxx"
-#include "Deserializer.hxx"
+#include "emucore/Random.hxx"
+#include "emucore/Serializer.hxx"
+#include "emucore/Deserializer.hxx"
 
 // This uses C++11.
 #include <random>
 #include <sstream>
 
-// A static Random object for compatibility purposes. Don't use this.
-Random Random::s_random;
+namespace ale {
+namespace stella {
 
-// Implementation of Random's random number generator wrapper. 
+// Implementation of Random's random number generator wrapper.
 class Random::Impl {
-  
+
   typedef std::mt19937 randgen_t;
 
   public:
-    
+
     Impl();
 
     // Implementations of the methods defined in Random.hpp.
-    void seed(uInt32 value);
-    uInt32 next();
+    void seed(uint32_t value);
+    uint32_t next();
     double nextDouble();
 
   private:
-   
+
     friend class Random;
 
     // Seed to use for creating new random number generators
-    uInt32 m_seed;
+    uint32_t m_seed;
 
-    // Random number generator 
-    randgen_t m_randgen; 
+    // Random number generator
+    randgen_t m_randgen;
 };
 
 Random::Impl::Impl()
@@ -59,14 +59,14 @@ Random::Impl::Impl()
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void Random::Impl::seed(uInt32 value)
+void Random::Impl::seed(uint32_t value)
 {
   m_seed = value;
   m_randgen.seed(m_seed);
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt32 Random::Impl::next() 
+uint32_t Random::Impl::next()
 {
   return m_randgen();
 }
@@ -79,7 +79,7 @@ double Random::Impl::nextDouble()
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Random::Random() :
-    m_pimpl(new Random::Impl()) 
+    m_pimpl(new Random::Impl())
 {
 }
 
@@ -92,13 +92,13 @@ Random::~Random() {
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void Random::seed(uInt32 value)
+void Random::seed(uint32_t value)
 {
   m_pimpl->seed(value);
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt32 Random::next()
+uint32_t Random::next()
 {
   return m_pimpl->next();
 }
@@ -109,12 +109,8 @@ double Random::nextDouble()
   return m_pimpl->nextDouble();
 }
 
-Random& Random::getInstance() {
-  return s_random;
-}
-
 bool Random::saveState(Serializer& ser) {
-  // The mt19937 object's serialization of choice is into a string. 
+  // The mt19937 object's serialization of choice is into a string.
   std::ostringstream oss;
   oss << m_pimpl->m_randgen;
 
@@ -131,3 +127,6 @@ bool Random::loadState(Deserializer& deser) {
 
   return true;
 }
+
+}  // namespace stella
+}  // namespace ale

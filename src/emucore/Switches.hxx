@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,11 +19,13 @@
 #ifndef SWITCHES_HXX
 #define SWITCHES_HXX
 
+namespace ale {
+namespace stella {
+
 class Event;
 class Properties;
 class Switches;
 
-#include "m6502/src/bspf/src/bspf.hxx"
 
 /**
   This class represents the console switches of the game console.
@@ -41,7 +43,7 @@ class Switches
       @param event The event object to use for events
     */
     Switches(const Event& event, const Properties& properties);
- 
+
     /**
       Destructor
     */
@@ -53,14 +55,17 @@ class Switches
 
       @return The 8 bits which represent the state of the console switches
     */
-    uInt8 read();
+    uint8_t read();
 
   private:
     // Reference to the event object to use
     const Event& myEvent;
 
     // State of the console switches
-    uInt8 mySwitches;
+    uint8_t mySwitches;
 };
-#endif
 
+}  // namespace stella
+}  // namespace ale
+
+#endif

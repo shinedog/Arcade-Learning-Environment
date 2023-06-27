@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,26 +19,34 @@
 #ifndef CARTRIDGEFE_HXX
 #define CARTRIDGEFE_HXX
 
+namespace ale {
+namespace stella {
+
 class System;
 class Serializer;
 class Deserializer;
 
-#include "m6502/src/bspf/src/bspf.hxx"
-#include "Cart.hxx"
+}  // namespace stella
+}  // namespace ale
+
+#include "emucore/Cart.hxx"
+
+namespace ale {
+namespace stella {
 
 /**
   Bankswitching method used by Activison's Robot Tank and Decathlon.
 
   Kevin Horton describes FE as follows:
 
-    Used only on two carts (Robot Tank and Decathlon).  These 
-    carts are very weird.  It does not use accesses to the stack 
-    like was previously thought.  Instead, if you watch the called 
-    addresses very carefully, you can see that they are either Dxxx 
-    or Fxxx.  This determines the bank to use.  Just monitor A13 of 
-    the processor and use it to determine your bank! :-)  Of course 
-    the 6507 in the 2600 does not have an A13, so the cart must have 
-    an extra bit in the ROM matrix to tell when to switch banks.  
+    Used only on two carts (Robot Tank and Decathlon).  These
+    carts are very weird.  It does not use accesses to the stack
+    like was previously thought.  Instead, if you watch the called
+    addresses very carefully, you can see that they are either Dxxx
+    or Fxxx.  This determines the bank to use.  Just monitor A13 of
+    the processor and use it to determine your bank! :-)  Of course
+    the 6507 in the 2600 does not have an A13, so the cart must have
+    an extra bit in the ROM matrix to tell when to switch banks.
     There is *no* way to determine which bank you want to be in from
     monitoring the bus.
 
@@ -53,8 +61,8 @@ class CartridgeFE : public Cartridge
 
       @param image Pointer to the ROM image
     */
-    CartridgeFE(const uInt8* image);
- 
+    CartridgeFE(const uint8_t* image);
+
     /**
       Destructor
     */
@@ -102,7 +110,7 @@ class CartridgeFE : public Cartridge
 
       @param bank The bank that should be installed in the system
     */
-    virtual void bank(uInt16 bank);
+    virtual void bank(uint16_t bank);
 
     /**
       Get the current bank.
@@ -123,7 +131,7 @@ class CartridgeFE : public Cartridge
       @param value    The value to place into the address
       @return    Success or failure of the patch operation
     */
-    virtual bool patch(uInt16 address, uInt8 value);
+    virtual bool patch(uint16_t address, uint8_t value);
 
     /**
       Access the internal ROM image for this cartridge.
@@ -131,7 +139,7 @@ class CartridgeFE : public Cartridge
       @param size  Set to the size of the internal ROM image data
       @return  A pointer to the internal ROM image data
     */
-    virtual uInt8* getImage(int& size);
+    virtual uint8_t* getImage(int& size);
 
   public:
     /**
@@ -139,7 +147,7 @@ class CartridgeFE : public Cartridge
 
       @return The byte at the specified address
     */
-    virtual uInt8 peek(uInt16 address);
+    virtual uint8_t peek(uint16_t address);
 
     /**
       Change the byte at the specified address to the given value
@@ -147,11 +155,14 @@ class CartridgeFE : public Cartridge
       @param address The address where the value should be stored
       @param value The value to be stored at the address
     */
-    virtual void poke(uInt16 address, uInt8 value);
+    virtual void poke(uint16_t address, uint8_t value);
 
   private:
     // The 8K ROM image of the cartridge
-    uInt8 myImage[8192];
+    uint8_t myImage[8192];
 };
+
+}  // namespace stella
+}  // namespace ale
 
 #endif

@@ -28,3 +28,8 @@ ROMs
 *.lai
 *.la
 *.a
+
+# Python
+*.pyc
+
+*.egg-info/

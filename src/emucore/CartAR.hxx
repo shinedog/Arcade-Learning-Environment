@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,21 +19,29 @@
 #ifndef CARTRIDGEAR_HXX
 #define CARTRIDGEAR_HXX
 
+namespace ale {
+namespace stella {
+
 class M6502High;
 class System;
 class Serializer;
 class Deserializer;
 
-#include "m6502/src/bspf/src/bspf.hxx"
-#include "Cart.hxx"
+}  // namespace stella
+}  // namespace ale
+
+#include "emucore/Cart.hxx"
+
+namespace ale {
+namespace stella {
 
 /**
-  This is the cartridge class for Arcadia (aka Starpath) Supercharger 
-  games.  Christopher Salomon provided most of the technical details 
+  This is the cartridge class for Arcadia (aka Starpath) Supercharger
+  games.  Christopher Salomon provided most of the technical details
   used in creating this class.  A good description of the Supercharger
   is provided in the Cuttle Cart's manual.
 
-  The Supercharger has four 2K banks.  There are three banks of RAM 
+  The Supercharger has four 2K banks.  There are three banks of RAM
   and one bank of ROM.  All 6K of the RAM can be read and written.
 
   @author  Bradford W. Mott
@@ -49,7 +57,7 @@ class CartridgeAR : public Cartridge
       @param size      The size of the ROM image
       @param fastbios  Whether or not to quickly execute the BIOS code
     */
-    CartridgeAR(const uInt8* image, uInt32 size, bool fastbios);
+    CartridgeAR(const uint8_t* image, uint32_t size, bool fastbios);
 
     /**
       Destructor
@@ -105,7 +113,7 @@ class CartridgeAR : public Cartridge
 
       @param bank The bank that should be installed in the system
     */
-    virtual void bank(uInt16 bank);
+    virtual void bank(uint16_t bank);
 
     /**
       Get the current bank.
@@ -126,7 +134,7 @@ class CartridgeAR : public Cartridge
       @param value    The value to place into the address
       @return    Success or failure of the patch operation
     */
-    virtual bool patch(uInt16 address, uInt8 value);
+    virtual bool patch(uint16_t address, uint8_t value);
 
     /**
       Access the internal ROM image for this cartridge.
@@ -134,7 +142,7 @@ class CartridgeAR : public Cartridge
       @param size  Set to the size of the internal ROM image data
       @return  A pointer to the internal ROM image data
     */
-    virtual uInt8* getImage(int& size);
+    virtual uint8_t* getImage(int& size);
 
   public:
     /**
@@ -142,7 +150,7 @@ class CartridgeAR : public Cartridge
 
       @return The byte at the specified address
     */
-    virtual uInt8 peek(uInt16 address);
+    virtual uint8_t peek(uint16_t address);
 
     /**
       Change the byte at the specified address to the given value
@@ -150,17 +158,17 @@ class CartridgeAR : public Cartridge
       @param address The address where the value should be stored
       @param value The value to be stored at the address
     */
-    virtual void poke(uInt16 address, uInt8 value);
+    virtual void poke(uint16_t address, uint8_t value);
 
   private:
     // Handle a change to the bank configuration
-    void bankConfiguration(uInt8 configuration);
+    void bankConfiguration(uint8_t configuration);
 
     // Compute the sum of the array of bytes
-    uInt8 checksum(uInt8* s, uInt16 length);
+    uint8_t checksum(uint8_t* s, uint16_t length);
 
     // Load the specified load into SC RAM
-    void loadIntoRAM(uInt8 load);
+    void loadIntoRAM(uint8_t load);
 
     // Sets up a "dummy" BIOS ROM in the ROM bank of the cartridge
     void initializeROM(bool fastbios);
@@ -170,19 +178,19 @@ class CartridgeAR : public Cartridge
     M6502High* my6502;
 
     // Indicates the offest within the image for the corresponding bank
-    uInt32 myImageOffset[2];
+    uint32_t myImageOffset[2];
 
     // The 6K of RAM and 2K of ROM contained in the Supercharger
-    uInt8 myImage[8192];
+    uint8_t myImage[8192];
 
     // The 256 byte header for the current 8448 byte load
-    uInt8 myHeader[256];
+    uint8_t myHeader[256];
 
-    // All of the 8448 byte loads associated with the game 
-    uInt8* myLoadImages;
+    // All of the 8448 byte loads associated with the game
+    uint8_t* myLoadImages;
 
     // Indicates how many 8448 loads there are
-    uInt8 myNumberOfLoadImages;
+    uint8_t myNumberOfLoadImages;
 
     // Indicates if the RAM is write enabled
     bool myWriteEnabled;
@@ -191,18 +199,21 @@ class CartridgeAR : public Cartridge
     bool myPower;
 
     // Indicates when the power was last turned on
-    Int32 myPowerRomCycle;
+    int myPowerRomCycle;
 
     // Data hold register used for writing
-    uInt8 myDataHoldRegister;
+    uint8_t myDataHoldRegister;
 
     // Indicates number of distinct accesses when data hold register was set
-    uInt32 myNumberOfDistinctAccesses;
+    uint32_t myNumberOfDistinctAccesses;
 
     // Indicates if a write is pending or not
     bool myWritePending;
 
-    uInt16 myCurrentBank;
+    uint16_t myCurrentBank;
 };
+
+}  // namespace stella
+}  // namespace ale
 
 #endif

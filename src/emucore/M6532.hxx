@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,14 +19,22 @@
 #ifndef M6532_HXX
 #define M6532_HXX
 
+namespace ale {
+namespace stella {
+
 class Console;
 class System;
 class Serializer;
 class Deserializer;
 
-#include "m6502/src/bspf/src/bspf.hxx"
-#include "m6502/src/Device.hxx"
-#include "Random.hxx"
+}  // namespace stella
+}  // namespace ale
+
+#include "emucore/Device.hxx"
+#include "emucore/Random.hxx"
+
+namespace ale {
+namespace stella {
 
 /**
   RIOT
@@ -43,7 +51,7 @@ class M6532 : public Device
       @param console The console the 6532 is associated with
     */
     M6532(const Console& console);
-    
+
     /**
       Destructor
     */
@@ -99,7 +107,7 @@ class M6532 : public Device
 
       @return The byte at the specified address
     */
-    virtual uInt8 peek(uInt16 address);
+    virtual uint8_t peek(uint16_t address);
 
     /**
       Change the byte at the specified address to the given value
@@ -107,42 +115,45 @@ class M6532 : public Device
       @param address The address where the value should be stored
       @param value The value to be stored at the address
     */
-    virtual void poke(uInt16 address, uInt8 value);
+    virtual void poke(uint16_t address, uint8_t value);
 
   private:
     // Reference to the console
     const Console& myConsole;
 
     // An amazing 128 bytes of RAM
-    uInt8 myRAM[128];
+    uint8_t myRAM[128];
 
     // Current value of my Timer
-    uInt32 myTimer;
+    uint32_t myTimer;
 
     // Log base 2 of the number of cycles in a timer interval
-    uInt32 myIntervalShift;
+    uint32_t myIntervalShift;
 
     // Indicates the number of cycles when the timer was last set
-    Int32 myCyclesWhenTimerSet;
+    int myCyclesWhenTimerSet;
 
     // Indicates when the timer was read after timer interrupt occured
-    Int32 myCyclesWhenInterruptReset;
+    int myCyclesWhenInterruptReset;
 
     // Indicates if a read from timer has taken place after interrupt occured
     bool myTimerReadAfterInterrupt;
 
     // Data Direction Register for Port A
-    uInt8 myDDRA;
+    uint8_t myDDRA;
 
     // Data Direction Register for Port B
-    uInt8 myDDRB;
+    uint8_t myDDRB;
 
   private:
     // Copy constructor isn't supported by this class so make it private
     M6532(const M6532&);
- 
+
     // Assignment operator isn't supported by this class so make it private
     M6532& operator = (const M6532&);
 };
-#endif
 
+}  // namespace stella
+}  // namespace ale
+
+#endif

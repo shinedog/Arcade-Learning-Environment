@@ -19,10 +19,20 @@
 #ifndef RANDOM_HXX
 #define RANDOM_HXX
 
-#include "m6502/src/bspf/src/bspf.hxx"
+
+namespace ale {
+namespace stella {
 
 class Serializer;
 class Deserializer;
+
+}  // namespace stella
+}  // namespace ale
+
+#include <cstdint>
+
+namespace ale {
+namespace stella {
 
 /**
   This Random class uses a Mersenne Twister to provide pseudorandom numbers.
@@ -31,20 +41,20 @@ class Deserializer;
 class Random
 {
   public:
-    
+
     /**
       Class method which allows you to set the seed that'll be used
       for created new instances of this class
 
       @param value The value to seed the random number generator with
     */
-    void seed(uInt32 value);
+    void seed(uint32_t value);
 
     /**
       Create a new random number generator
     */
     Random();
-   
+
     ~Random();
 
     /**
@@ -52,7 +62,7 @@ class Random
 
       @return A random number
     */
-    uInt32 next();
+    uint32_t next();
 
     /**
       Answer the next random number between 0 and 1 from the random number generator
@@ -61,28 +71,24 @@ class Random
     */
     double nextDouble();
 
-    // Returns a static Random object. DO NOT USE THIS. This is mostly meant for use by the
-    // code for the various cartridges. 
-    static Random& getInstance();
-
     /**
       Serializes the RNG state.
     */
     bool saveState(Serializer& out);
 
-    /** 
+    /**
       Deserializes the RNG state.
     */
     bool loadState(Deserializer& in);
 
     private:
-    
-    // Actual rng (implementation hidden away from the header to avoid depending on rng libraries). 
+
+    // Actual rng (implementation hidden away from the header to avoid depending on rng libraries).
     class Impl;
     Impl *m_pimpl;
-
-    // A static Random object. Don't use this.
-    static Random s_random;
 };
-#endif
 
+}  // namespace stella
+}  // namespace ale
+
+#endif

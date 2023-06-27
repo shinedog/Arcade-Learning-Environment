@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,15 +19,17 @@
 #ifndef CONTROLLER_HXX
 #define CONTROLLER_HXX
 
+namespace ale {
+namespace stella {
+
 class Controller;
 class Event;
 class System;
 
-#include "m6502/src/bspf/src/bspf.hxx"
 
 /**
-  A controller is a device that plugs into either the left or right 
-  controller jack of the Video Computer System (VCS).  The pins of 
+  A controller is a device that plugs into either the left or right
+  controller jack of the Video Computer System (VCS).  The pins of
   the controller jacks are mapped as follows:
 
                            -------------
@@ -74,8 +76,7 @@ class Controller
     */
     enum Type
     {
-      BoosterGrip, Driving, Keyboard, Paddles, Joystick,
-      TrakBall, AtariVox
+      Paddles, Joystick
     };
 
   public:
@@ -130,17 +131,17 @@ class Controller
     virtual bool read(DigitalPin pin) = 0;
 
     /**
-      Read the resistance at the specified analog pin for this controller.  
+      Read the resistance at the specified analog pin for this controller.
       The returned value is the resistance measured in ohms.
 
       @param pin The pin of the controller jack to read
       @return The resistance at the specified pin
     */
-    virtual Int32 read(AnalogPin pin) = 0;
+    virtual int read(AnalogPin pin) = 0;
 
     /**
-      Write the given value to the specified digital pin for this 
-      controller.  Writing is only allowed to the pins associated 
+      Write the given value to the specified digital pin for this
+      controller.  Writing is only allowed to the pins associated
       with the PIA.  Therefore you cannot write to pin six.
 
       @param pin The pin of the controller jack to write to
@@ -150,10 +151,10 @@ class Controller
 
   public:
     /// Constant which represents maximum resistance for analog pins
-    static const Int32 maximumResistance;
+    static const int maximumResistance;
 
     /// Constant which represents minimum resistance for analog pins
-    static const Int32 minimumResistance;
+    static const int minimumResistance;
 
   protected:
     /// Specifies which jack the controller is plugged in
@@ -175,5 +176,8 @@ class Controller
     // Assignment operator isn't supported by controllers so make it private
     Controller& operator = (const Controller&);
 };
+
+}  // namespace stella
+}  // namespace ale
 
 #endif

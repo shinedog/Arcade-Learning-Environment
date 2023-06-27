@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,13 +19,21 @@
 #ifndef SETTINGS_HXX
 #define SETTINGS_HXX
 
+namespace ale {
+namespace stella {
+
 class OSystem;
 
+}  // namespace stella
+}  // namespace ale
+
 #include <map>
+#include <vector>
 #include <stdexcept>
 
-#include "../common/Array.hxx"
-#include "m6502/src/bspf/src/bspf.hxx"
+
+namespace ale {
+namespace stella {
 
 /**
   This class provides an interface for accessing frontend specific settings.
@@ -48,37 +56,10 @@ class Settings
 
   public:
     /**
-      This method should be called to load the current settings from an rc file.
-    */
-    virtual void loadConfig();
-    
-    /**
-      This method loads the given 
-    */
-    void loadConfig(const char* config_file);
-
-    /**
-      This method should be called to save the current settings to an rc file.
-    */
-    virtual void saveConfig();
-
-    /**
-      This method should be called to load the arguments from the commandline.
-
-      @return Name of the ROM to load, otherwise empty string
-    */
-    std::string loadCommandLine(int argc, char** argv);
-
-    /**
       This method should be called *after* settings have been read,
       to validate (and change, if necessary) any improper settings.
     */
     void validate();
-
-    /**
-      This method should be called to display usage information.
-    */
-    void usage();
 
     /**
       Get the value assigned to the specified key.  If the key does
@@ -195,7 +176,7 @@ class Settings
       std::string value;
       std::string initialValue;
     };
-    typedef Common::Array<Setting> SettingsArray;
+    typedef std::vector<Setting> SettingsArray;
 
     const SettingsArray& getInternalSettings() const
       { return myInternalSettings; }
@@ -230,5 +211,8 @@ class Settings
     // program exit.
     SettingsArray myExternalSettings;
 };
+
+}  // namespace stella
+}  // namespace ale
 
 #endif

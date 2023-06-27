@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -16,11 +16,14 @@
 // $Id: Switches.cxx,v 1.7 2007/01/01 18:04:50 stephena Exp $
 //============================================================================
 
-#include "Event.hxx"
-#include "Props.hxx"
-#include "Switches.hxx"
+#include "emucore/Event.hxx"
+#include "emucore/Props.hxx"
+#include "emucore/Switches.hxx"
 
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+namespace ale {
+namespace stella {
+
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Switches::Switches(const Event& event, const Properties& properties)
     : myEvent(event),
       mySwitches(0xFF)
@@ -53,13 +56,13 @@ Switches::Switches(const Event& event, const Properties& properties)
   }
 }
 
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Switches::~Switches()
 {
 }
 
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - 
-uInt8 Switches::read()
+// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
+uint8_t Switches::read()
 {
   if(myEvent.get(Event::ConsoleColor) != 0)
   {
@@ -74,7 +77,7 @@ uInt8 Switches::read()
   {
     mySwitches |= 0x80;
   }
-  else if(myEvent.get(Event::ConsoleRightDifficultyB) != 0) 
+  else if(myEvent.get(Event::ConsoleRightDifficultyB) != 0)
   {
     mySwitches &= ~0x80;
   }
@@ -92,7 +95,7 @@ uInt8 Switches::read()
   {
     mySwitches &= ~0x02;
   }
-  else 
+  else
   {
     mySwitches |= 0x02;
   }
@@ -101,7 +104,7 @@ uInt8 Switches::read()
   {
     mySwitches &= ~0x01;
   }
-  else 
+  else
   {
     mySwitches |= 0x01;
   }
@@ -109,3 +112,5 @@ uInt8 Switches::read()
   return mySwitches;
 }
 
+}  // namespace stella
+}  // namespace ale

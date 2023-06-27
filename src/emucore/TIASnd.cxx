@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -16,12 +16,15 @@
 // $Id: TIASnd.cxx,v 1.6 2007/01/01 18:04:50 stephena Exp $
 //============================================================================
 
-#include "System.hxx"
-#include "TIASnd.hxx"
+#include "emucore/System.hxx"
+#include "emucore/TIASnd.hxx"
 #include <cassert>
 
+namespace ale {
+namespace stella {
+
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-TIASound::TIASound(Int32 outputFrequency, Int32 tiaFrequency, uInt32 channels)
+TIASound::TIASound(int outputFrequency, int tiaFrequency, uint32_t channels)
   : myOutputFrequency(outputFrequency),
     myTIAFrequency(tiaFrequency),
     myChannels(channels),
@@ -48,19 +51,19 @@ void TIASound::reset()
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIASound::outputFrequency(Int32 freq)
+void TIASound::outputFrequency(int freq)
 {
   myOutputFrequency = freq;
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIASound::tiaFrequency(Int32 freq)
+void TIASound::tiaFrequency(int freq)
 {
   myTIAFrequency = freq;
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIASound::channels(uInt32 number)
+void TIASound::channels(uint32_t number)
 {
   myChannels = number == 2 ? 2 : 1;
 }
@@ -72,7 +75,7 @@ void TIASound::clipVolume(bool clip)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIASound::set(uInt16 address, uInt8 value)
+void TIASound::set(uint16_t address, uint8_t value)
 {
   switch(address)
   {
@@ -108,7 +111,7 @@ void TIASound::set(uInt16 address, uInt8 value)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 TIASound::get(uInt16 address)
+uint8_t TIASound::get(uint16_t address)
 {
   switch(address)
   {
@@ -136,7 +139,7 @@ uInt8 TIASound::get(uInt16 address)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIASound::volume(uInt32 percent)
+void TIASound::volume(uint32_t percent)
 {
   assert(percent >= 0);
   if(percent <= 100)
@@ -144,16 +147,16 @@ void TIASound::volume(uInt32 percent)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIASound::process(uInt8* buffer, uInt32 samples)
+void TIASound::process(uint8_t* buffer, uint32_t samples)
 {
-  Int32 v0 = ((myAUDV[0] << 2) * myVolumePercentage) / 100;
-  Int32 v1 = ((myAUDV[1] << 2) * myVolumePercentage) / 100;
+  int v0 = ((myAUDV[0] << 2) * myVolumePercentage) / 100;
+  int v1 = ((myAUDV[1] << 2) * myVolumePercentage) / 100;
 
   // Loop until the sample buffer is full
   while(samples > 0)
   {
     // Process both sound channels
-    for(uInt32 c = 0; c < 2; ++c)
+    for(uint32_t c = 0; c < 2; ++c)
     {
       // Update P4 & P5 registers for channel if freq divider outputs a pulse
       if((myFreqDiv[c].clock()))
@@ -170,7 +173,7 @@ void TIASound::process(uInt8* buffer, uInt32 samples)
           case 0x01:    // 4 bit poly
           {
             // Clock P4 as a standard 4-bit LSFR taps at bits 3 & 2
-            myP4[c] = (myP4[c] & 0x0f) ? 
+            myP4[c] = (myP4[c] & 0x0f) ?
                 ((myP4[c] << 1) | (((myP4[c] & 0x08) ? 1 : 0) ^
                 ((myP4[c] & 0x04) ? 1 : 0))) : 1;
             break;
@@ -187,7 +190,7 @@ void TIASound::process(uInt8* buffer, uInt32 samples)
             if((myP5[c] & 0x0f) == 0x08)
             {
               // Clock P4 as a standard 4-bit LSFR taps at bits 3 & 2
-              myP4[c] = (myP4[c] & 0x0f) ? 
+              myP4[c] = (myP4[c] & 0x0f) ?
                   ((myP4[c] << 1) | (((myP4[c] & 0x08) ? 1 : 0) ^
                   ((myP4[c] & 0x04) ? 1 : 0))) : 1;
             }
@@ -205,7 +208,7 @@ void TIASound::process(uInt8* buffer, uInt32 samples)
             if(myP5[c] & 0x10)
             {
               // Clock P4 as a standard 4-bit LSFR taps at bits 3 & 2
-              myP4[c] = (myP4[c] & 0x0f) ? 
+              myP4[c] = (myP4[c] & 0x0f) ?
                   ((myP4[c] << 1) | (((myP4[c] & 0x08) ? 1 : 0) ^
                   ((myP4[c] & 0x04) ? 1 : 0))) : 1;
             }
@@ -214,14 +217,14 @@ void TIASound::process(uInt8* buffer, uInt32 samples)
 
           case 0x04:    // div 2
           {
-            // Clock P4 toggling the lower bit (divide by 2) 
+            // Clock P4 toggling the lower bit (divide by 2)
             myP4[c] = (myP4[c] << 1) | ((myP4[c] & 0x01) ? 0 : 1);
             break;
           }
 
           case 0x05:    // div 2
           {
-            // Clock P4 toggling the lower bit (divide by 2) 
+            // Clock P4 toggling the lower bit (divide by 2)
             myP4[c] = (myP4[c] << 1) | ((myP4[c] & 0x01) ? 0 : 1);
             break;
           }
@@ -236,7 +239,7 @@ void TIASound::process(uInt8* buffer, uInt32 samples)
             // This does the divide-by 31 with length 13:18
             if((myP5[c] & 0x0f) == 0x08)
             {
-              // Clock P4 toggling the lower bit (divide by 2) 
+              // Clock P4 toggling the lower bit (divide by 2)
               myP4[c] = (myP4[c] << 1) | ((myP4[c] & 0x01) ? 0 : 1);
             }
             break;
@@ -252,7 +255,7 @@ void TIASound::process(uInt8* buffer, uInt32 samples)
             // P5 clocks the 4 bit register
             if(myP5[c] & 0x10)
             {
-              // Clock P4 toggling the lower bit (divide by 2) 
+              // Clock P4 toggling the lower bit (divide by 2)
               myP4[c] = (myP4[c] << 1) | ((myP4[c] & 0x01) ? 0 : 1);
             }
             break;
@@ -357,13 +360,13 @@ void TIASound::process(uInt8* buffer, uInt32 samples)
     }
 
     myOutputCounter += myOutputFrequency;
-  
+
     if(myChannels == 1)
     {
       // Handle mono sample generation
       while((samples > 0) && (myOutputCounter >= myTIAFrequency))
       {
-        *(buffer++) = (((myP4[0] & 8) ? v0 : 0) + 
+        *(buffer++) = (((myP4[0] & 8) ? v0 : 0) +
             ((myP4[1] & 8) ? v1 : 0)) + myVolumeClip;
         myOutputCounter -= myTIAFrequency;
         samples--;
@@ -382,3 +385,6 @@ void TIASound::process(uInt8* buffer, uInt32 samples)
     }
   }
 }
+
+}  // namespace stella
+}  // namespace ale

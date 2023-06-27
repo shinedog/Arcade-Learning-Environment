@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,20 +19,26 @@
 #ifndef SOUND_SDL_HXX
 #define SOUND_SDL_HXX
 
-#ifdef SOUND_SUPPORT
+#ifdef SDL_SUPPORT
 
-class OSystem;
+namespace ale {
+namespace stella {
 
-#include "SDL.h"
+class Settings;
 
-#include "../emucore/Sound.hxx"
-#include "../emucore/m6502/src/bspf/src/bspf.hxx"
-#include "MediaSrc.hxx"
-#include "TIASnd.hxx"
+}  // namespace stella
+}  // namespace ale
 
+#include "emucore/Sound.hxx"
+#include "emucore/MediaSrc.hxx"
+#include "emucore/TIASnd.hxx"
+
+#include "common/SDL2.hpp"
 // If desired, we save sound to disk
-#include "SoundExporter.hpp"
+#include "common/SoundExporter.hpp"
 #include <memory>
+
+namespace ale {
 
 /**
   This class implements the sound API for SDL.
@@ -40,15 +46,15 @@ class OSystem;
   @author Stephen Anthony and Bradford W. Mott
   @version $Id: SoundSDL.hxx,v 1.18 2007/01/01 18:04:40 stephena Exp $
 */
-class SoundSDL : public Sound
+class SoundSDL : public stella::Sound
 {
   public:
     /**
       Create a new sound object.  The init method must be invoked before
       using the object.
     */
-    SoundSDL(OSystem* osystem);
- 
+    SoundSDL(stella::Settings* settings);
+
     /**
       Destructor
     */
@@ -68,14 +74,14 @@ class SoundSDL : public Sound
 
       @param amount The amount the cycle counter is being adjusted by
     */
-    void adjustCycleCounter(Int32 amount);
+    void adjustCycleCounter(int amount);
 
     /**
       Sets the number of channels (mono or stereo sound).
 
       @param channels The number of channels
     */
-    void setChannels(uInt32 channels);
+    void setChannels(uint32_t channels);
 
     /**
       Sets the display framerate.  Sound generation for NTSC and PAL games
@@ -83,7 +89,7 @@ class SoundSDL : public Sound
 
       @param framerate The base framerate depending on NTSC or PAL ROM
     */
-    void setFrameRate(uInt32 framerate);
+    void setFrameRate(uint32_t framerate);
 
     /**
       Initializes the sound device.  This must be called before any
@@ -123,7 +129,7 @@ class SoundSDL : public Sound
       @param value The value to save into the register
       @param cycle The system cycle at which the register is being updated
     */
-    void set(uInt16 addr, uInt8 value, Int32 cycle);
+    void set(uint16_t addr, uint8_t value, int cycle);
 
     /**
       Sets the volume of the sound device to the specified level.  The
@@ -132,7 +138,7 @@ class SoundSDL : public Sound
 
       @param percent The new volume percentage level for the sound device
     */
-    void setVolume(Int32 percent);
+    void setVolume(int percent);
 
     /**
       Adjusts the volume of the sound device based on the given direction.
@@ -140,12 +146,12 @@ class SoundSDL : public Sound
       @param direction Increase or decrease the current volume by a predefined
           amount based on the direction (1 = increase, -1 = decrease)
     */
-    void adjustVolume(Int8 direction);
+    void adjustVolume(int8_t direction);
 
     /**
       * Tells the sound engine to record one frame's worth of sound.
       */
-    void recordNextFrame(); 
+    void recordNextFrame();
 
   public:
     /**
@@ -154,7 +160,7 @@ class SoundSDL : public Sound
       @param in The deserializer device to load from.
       @return The result of the load.  True on success, false on failure.
     */
-    bool load(Deserializer& in);
+    bool load(stella::Deserializer& in);
 
     /**
       Saves the current state of this device to the given Serializer.
@@ -162,7 +168,7 @@ class SoundSDL : public Sound
       @param out The serializer device to save to.
       @return The result of the save.  True on success, false on failure.
     */
-    bool save(Serializer& out);
+    bool save(stella::Serializer& out);
 
   protected:
     /**
@@ -171,14 +177,14 @@ class SoundSDL : public Sound
       @param stream Pointer to the start of the fragment
       @param length Length of the fragment
     */
-    void processFragment(uInt8* stream, Int32 length);
+    void processFragment(uint8_t* stream, int length);
 
   protected:
     // Struct to hold information regarding a TIA sound register write
     struct RegWrite
     {
-      uInt16 addr;
-      uInt8 value;
+      uint16_t addr;
+      uint8_t value;
       double delta;
     };
 
@@ -194,7 +200,7 @@ class SoundSDL : public Sound
           capacity.  If the queue ever reaches its capacity then it will
           automatically increase its size.
         */
-        RegWriteQueue(uInt32 capacity = 512);
+        RegWriteQueue(uint32_t capacity = 512);
 
         /**
           Destroy this queue instance.
@@ -234,23 +240,23 @@ class SoundSDL : public Sound
 
           @return The number of items in the queue.
         */
-        uInt32 size() const;
+        uint32_t size() const;
 
       private:
         // Increase the size of the queue
         void grow();
 
       private:
-        uInt32 myCapacity;
+        uint32_t myCapacity;
         RegWrite* myBuffer;
-        uInt32 mySize;
-        uInt32 myHead;
-        uInt32 myTail;
+        uint32_t mySize;
+        uint32_t myHead;
+        uint32_t myTail;
     };
 
   private:
     // TIASound emulation object
-    TIASound myTIASound;
+    stella::TIASound myTIASound;
 
     // Indicates if the sound subsystem is to be initialized
     bool myIsEnabled;
@@ -259,13 +265,13 @@ class SoundSDL : public Sound
     bool myIsInitializedFlag;
 
     // Indicates the cycle when a sound register was last set
-    Int32 myLastRegisterSetCycle;
+    int myLastRegisterSetCycle;
 
     // Indicates the base framerate depending on if the ROM is NTSC or PAL
-    uInt32 myDisplayFrameRate;
+    uint32_t myDisplayFrameRate;
 
     // Indicates the number of channels (mono or stereo)
-    uInt32 myNumChannels;
+    uint32_t myNumChannels;
 
     // Log base 2 of the selected fragment size
     double myFragmentSizeLogBase2;
@@ -274,7 +280,7 @@ class SoundSDL : public Sound
     bool myIsMuted;
 
     // Current volume as a percentage (0 - 100)
-    uInt32 myVolume;
+    uint32_t myVolume;
 
     // Audio specification structure
     SDL_AudioSpec myHardwareSpec;
@@ -284,13 +290,15 @@ class SoundSDL : public Sound
 
   private:
     // Callback function invoked by the SDL Audio library when it needs data
-    static void callback(void* udata, uInt8* stream, int len);
+    static void callback(void* udata, uint8_t* stream, int len);
 
     // Keeps track of how many samples we still need to record
-    int myNumRecordSamplesNeeded; 
+    int myNumRecordSamplesNeeded;
 
-    std::auto_ptr<ale::sound::SoundExporter> mySoundExporter; 
+    std::unique_ptr<ale::sound::SoundExporter> mySoundExporter;
 };
 
-#endif  // SOUND_SUPPORT
+}  // namespace ale
+
+#endif  // SDL_SUPPORT
 #endif

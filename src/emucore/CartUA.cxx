@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -18,17 +18,19 @@
 
 #include <cassert>
 
-#include "System.hxx"
-#include "Serializer.hxx"
-#include "Deserializer.hxx"
-#include "CartUA.hxx"
-using namespace std;
+#include "emucore/System.hxx"
+#include "emucore/Serializer.hxx"
+#include "emucore/Deserializer.hxx"
+#include "emucore/CartUA.hxx"
+
+namespace ale {
+namespace stella {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-CartridgeUA::CartridgeUA(const uInt8* image)
+CartridgeUA::CartridgeUA(const uint8_t* image)
 {
   // Copy the ROM image into my buffer
-  for(uInt32 addr = 0; addr < 8192; ++addr)
+  for(uint32_t addr = 0; addr < 8192; ++addr)
   {
     myImage[addr] = image[addr];
   }
@@ -56,8 +58,8 @@ void CartridgeUA::reset()
 void CartridgeUA::install(System& system)
 {
   mySystem = &system;
-  uInt16 shift = mySystem->pageShift();
-  uInt16 mask = mySystem->pageMask();
+  uint16_t shift = mySystem->pageShift();
+  uint16_t mask = mySystem->pageMask();
 
   // Make sure the system we're being installed in has a page size that'll work
   assert((0x1000 & mask) == 0);
@@ -79,7 +81,7 @@ void CartridgeUA::install(System& system)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 CartridgeUA::peek(uInt16 address)
+uint8_t CartridgeUA::peek(uint16_t address)
 {
   address = address & 0x1FFF;
 
@@ -111,7 +113,7 @@ uInt8 CartridgeUA::peek(uInt16 address)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void CartridgeUA::poke(uInt16 address, uInt8 value)
+void CartridgeUA::poke(uint16_t address, uint8_t value)
 {
   address = address & 0x1FFF;
 
@@ -141,7 +143,7 @@ void CartridgeUA::poke(uInt16 address, uInt8 value)
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 bool CartridgeUA::save(Serializer& out)
 {
-  string cart = name();
+  std::string cart = name();
 
   try
   {
@@ -151,12 +153,12 @@ bool CartridgeUA::save(Serializer& out)
   }
   catch(const char* msg)
   {
-    ale::Logger::Error << msg << endl;
+    ale::Logger::Error << msg << std::endl;
     return false;
   }
   catch(...)
   {
-    ale::Logger::Error << "Unknown error in save state for " << cart << endl;
+    ale::Logger::Error << "Unknown error in save state for " << cart << std::endl;
     return false;
   }
 
@@ -166,23 +168,23 @@ bool CartridgeUA::save(Serializer& out)
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 bool CartridgeUA::load(Deserializer& in)
 {
-  string cart = name();
+  std::string cart = name();
 
   try
   {
     if(in.getString() != cart)
       return false;
 
-    myCurrentBank = (uInt16)in.getInt();
+    myCurrentBank = (uint16_t)in.getInt();
   }
   catch(const char* msg)
   {
-    ale::Logger::Error << msg << endl;
+    ale::Logger::Error << msg << std::endl;
     return false;
   }
   catch(...)
   {
-    ale::Logger::Error << "Unknown error in load state for " << cart << endl;
+    ale::Logger::Error << "Unknown error in load state for " << cart << std::endl;
     return false;
   }
 
@@ -193,15 +195,15 @@ bool CartridgeUA::load(Deserializer& in)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void CartridgeUA::bank(uInt16 bank)
-{ 
+void CartridgeUA::bank(uint16_t bank)
+{
   if(bankLocked) return;
 
   // Remember what bank we're in
   myCurrentBank = bank;
-  uInt16 offset = myCurrentBank * 4096;
-  uInt16 shift = mySystem->pageShift();
-//  uInt16 mask = mySystem->pageMask();
+  uint16_t offset = myCurrentBank * 4096;
+  uint16_t shift = mySystem->pageShift();
+//  uint16_t mask = mySystem->pageMask();
 
   // Setup the page access methods for the current bank
   System::PageAccess access;
@@ -209,7 +211,7 @@ void CartridgeUA::bank(uInt16 bank)
   access.directPokeBase = 0;
 
   // Map ROM image into the system
-  for(uInt32 address = 0x1000; address < 0x2000; address += (1 << shift))
+  for(uint32_t address = 0x1000; address < 0x2000; address += (1 << shift))
   {
     access.directPeekBase = &myImage[offset + (address & 0x0FFF)];
     mySystem->setPageAccess(address >> shift, access);
@@ -229,17 +231,18 @@ int CartridgeUA::bankCount()
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-bool CartridgeUA::patch(uInt16 address, uInt8 value)
+bool CartridgeUA::patch(uint16_t address, uint8_t value)
 {
-  address &= 0x0fff;
-  myImage[myCurrentBank * 4096] = value;
-  bank(myCurrentBank); // TODO: see if this is really necessary
+  myImage[(myCurrentBank << 12) + (address & 0x0fff)] = value;
   return true;
-} 
+}
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8* CartridgeUA::getImage(int& size)
+uint8_t* CartridgeUA::getImage(int& size)
 {
   size = 8192;
   return &myImage[0];
 }
+
+}  // namespace stella
+}  // namespace ale

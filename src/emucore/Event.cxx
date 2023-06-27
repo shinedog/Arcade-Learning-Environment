@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -16,7 +16,10 @@
 // $Id: Event.cxx,v 1.11 2007/01/01 18:04:47 stephena Exp $
 //============================================================================
 
-#include "Event.hxx"
+#include "emucore/Event.hxx"
+
+namespace ale {
+namespace stella {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Event::Event()
@@ -39,13 +42,13 @@ Event::~Event()
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Int32 Event::get(Type type) const
+int Event::get(Type type) const
 {
   return myValues[type];
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void Event::set(Type type, Int32 value)
+void Event::set(Type type, int value)
 {
   myValues[type] = value;
 }
@@ -60,3 +63,6 @@ void Event::clear()
       myValues[i] = 0;
   }
 }
+
+}  // namespace stella
+}  // namespace ale

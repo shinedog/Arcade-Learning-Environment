@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -18,13 +18,16 @@
 
 #include <cassert>
 
-#include "System.hxx"
-#include "Serializer.hxx"
-#include "Deserializer.hxx"
-#include "Cart0840.hxx"
+#include "emucore/System.hxx"
+#include "emucore/Serializer.hxx"
+#include "emucore/Deserializer.hxx"
+#include "emucore/Cart0840.hxx"
+
+namespace ale {
+namespace stella {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Cartridge0840::Cartridge0840(const uInt8* image)
+Cartridge0840::Cartridge0840(const uint8_t* image)
 {
 }
 
@@ -50,13 +53,13 @@ void Cartridge0840::install(System& system)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 Cartridge0840::peek(uInt16 address)
+uint8_t Cartridge0840::peek(uint16_t address)
 {
   return 0;
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void Cartridge0840::poke(uInt16 address, uInt8 value)
+void Cartridge0840::poke(uint16_t address, uint8_t value)
 {
 }
 
@@ -73,8 +76,8 @@ bool Cartridge0840::load(Deserializer& in)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void Cartridge0840::bank(uInt16 bank)
-{ 
+void Cartridge0840::bank(uint16_t bank)
+{
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
@@ -90,14 +93,17 @@ int Cartridge0840::bankCount()
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-bool Cartridge0840::patch(uInt16 address, uInt8 value)
+bool Cartridge0840::patch(uint16_t address, uint8_t value)
 {
   return false;
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8* Cartridge0840::getImage(int& size)
+uint8_t* Cartridge0840::getImage(int& size)
 {
   size = 0;
   return 0;
 }
+
+}  // namespace stella
+}  // namespace ale

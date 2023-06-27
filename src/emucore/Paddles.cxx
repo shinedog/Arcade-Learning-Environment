@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -16,8 +16,11 @@
 // $Id: Paddles.cxx,v 1.8 2007/01/05 17:54:23 stephena Exp $
 //============================================================================
 
-#include "Event.hxx"
-#include "Paddles.hxx"
+#include "emucore/Event.hxx"
+#include "emucore/Paddles.hxx"
+
+namespace ale {
+namespace stella {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Paddles::Paddles(Jack jack, const Event& event, bool swap)
@@ -73,11 +76,11 @@ bool Paddles::read(DigitalPin pin)
   switch(pin)
   {
     case Three:
-      return (myJack == Left) ? (myEvent.get(myPinEvents[0][0]) == 0) : 
+      return (myJack == Left) ? (myEvent.get(myPinEvents[0][0]) == 0) :
           (myEvent.get(myPinEvents[0][1]) == 0);
 
     case Four:
-      return (myJack == Left) ? (myEvent.get(myPinEvents[1][0]) == 0) : 
+      return (myJack == Left) ? (myEvent.get(myPinEvents[1][0]) == 0) :
           (myEvent.get(myPinEvents[1][1]) == 0);
 
     default:
@@ -87,16 +90,16 @@ bool Paddles::read(DigitalPin pin)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Int32 Paddles::read(AnalogPin pin)
+int Paddles::read(AnalogPin pin)
 {
   switch(pin)
   {
     case Five:
-      return (myJack == Left) ? myEvent.get(myPinEvents[2][0]) : 
+      return (myJack == Left) ? myEvent.get(myPinEvents[2][0]) :
           myEvent.get(myPinEvents[2][1]);
 
     case Nine:
-      return (myJack == Left) ? myEvent.get(myPinEvents[3][0]) : 
+      return (myJack == Left) ? myEvent.get(myPinEvents[3][0]) :
           myEvent.get(myPinEvents[3][1]);
 
     default:
@@ -109,3 +112,6 @@ void Paddles::write(DigitalPin, bool)
 {
   // Writing doesn't do anything to the paddles...
 }
+
+}  // namespace stella
+}  // namespace ale

@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -16,8 +16,11 @@
 // $Id: Control.cxx,v 1.6 2007/01/05 17:54:09 stephena Exp $
 //============================================================================
 
-#include <assert.h>
-#include "Control.hxx"
+#include <cassert>
+#include "emucore/Control.hxx"
+
+namespace ale {
+namespace stella {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Controller::Controller(Jack jack, const Event& event, Type type)
@@ -39,10 +42,10 @@ Controller::Type Controller::type()
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-const Int32 Controller::maximumResistance = 0x7FFFFFFF;
+const int Controller::maximumResistance = 0x7FFFFFFF;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-const Int32 Controller::minimumResistance = 0x00000000;
+const int Controller::minimumResistance = 0x00000000;
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 Controller::Controller(const Controller& c)
@@ -59,3 +62,6 @@ Controller& Controller::operator = (const Controller&)
   assert(false);
   return *this;
 }
+
+}  // namespace stella
+}  // namespace ale

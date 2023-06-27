@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,16 +19,22 @@
 #ifndef MD5_HXX
 #define MD5_HXX
 
-#include "m6502/src/bspf/src/bspf.hxx"
+#include <string>
+
+namespace ale {
+namespace stella {
 
 /**
-  Get the MD5 Message-Digest of the specified message with the 
+  Get the MD5 Message-Digest of the specified message with the
   given length.  The digest consists of 32 hexadecimal digits.
 
   @param buffer The message to compute the digest of
   @param length The length of the message
   @return The message-digest
 */
-std::string MD5(const uInt8* buffer, uInt32 length);
+std::string MD5(const uint8_t* buffer, uint32_t length);
+
+}  // namespace stella
+}  // namespace ale
 
 #endif

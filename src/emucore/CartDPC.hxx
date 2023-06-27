@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,16 +19,24 @@
 #ifndef CARTRIDGEDCP_HXX
 #define CARTRIDGEDCP_HXX
 
+namespace ale {
+namespace stella {
+
 class System;
 class Serializer;
 class Deserializer;
 
-#include "m6502/src/bspf/src/bspf.hxx"
-#include "Cart.hxx"
+}  // namespace stella
+}  // namespace ale
+
+#include "emucore/Cart.hxx"
+
+namespace ale {
+namespace stella {
 
 /**
-  Cartridge class used for Pitfall II.  There are two 4K program banks, a 
-  2K display bank, and the DPC chip.  For complete details on the DPC chip 
+  Cartridge class used for Pitfall II.  There are two 4K program banks, a
+  2K display bank, and the DPC chip.  For complete details on the DPC chip
   see David P. Crane's United States Patent Number 4,644,495.
 
   @author  Bradford W. Mott
@@ -42,8 +50,8 @@ class CartridgeDPC : public Cartridge
 
       @param image Pointer to the ROM image
     */
-    CartridgeDPC(const uInt8* image, uInt32 size);
- 
+    CartridgeDPC(const uint8_t* image, uint32_t size);
+
     /**
       Destructor
     */
@@ -98,7 +106,7 @@ class CartridgeDPC : public Cartridge
 
       @param bank The bank that should be installed in the system
     */
-    virtual void bank(uInt16 bank);
+    virtual void bank(uint16_t bank);
 
     /**
       Get the current bank.
@@ -119,7 +127,7 @@ class CartridgeDPC : public Cartridge
       @param value    The value to place into the address
       @return    Success or failure of the patch operation
     */
-    virtual bool patch(uInt16 address, uInt8 value);
+    virtual bool patch(uint16_t address, uint8_t value);
 
     /**
       Access the internal ROM image for this cartridge.
@@ -127,7 +135,7 @@ class CartridgeDPC : public Cartridge
       @param size  Set to the size of the internal ROM image data
       @return  A pointer to the internal ROM image data
     */
-    virtual uInt8* getImage(int& size);
+    virtual uint8_t* getImage(int& size);
 
   public:
     /**
@@ -135,7 +143,7 @@ class CartridgeDPC : public Cartridge
 
       @return The byte at the specified address
     */
-    virtual uInt8 peek(uInt16 address);
+    virtual uint8_t peek(uint16_t address);
 
     /**
       Change the byte at the specified address to the given value
@@ -143,15 +151,15 @@ class CartridgeDPC : public Cartridge
       @param address The address where the value should be stored
       @param value The value to be stored at the address
     */
-    virtual void poke(uInt16 address, uInt8 value);
+    virtual void poke(uint16_t address, uint8_t value);
 
   private:
-    /** 
+    /**
       Clocks the random number generator to move it to its next state
     */
     void clockRandomNumberGenerator();
 
-    /** 
+    /**
       Updates any data fetchers in music mode based on the number of
       CPU cycles which have passed since the last update.
     */
@@ -159,40 +167,43 @@ class CartridgeDPC : public Cartridge
 
   private:
     // Indicates which bank is currently active
-    uInt16 myCurrentBank;
+    uint16_t myCurrentBank;
 
     // The 8K program ROM image of the cartridge
-    uInt8 myProgramImage[8192];
+    uint8_t myProgramImage[8192];
 
     // The 2K display ROM image of the cartridge
-    uInt8 myDisplayImage[2048];
+    uint8_t myDisplayImage[2048];
 
     // Copy of the raw image, for use by getImage()
-    uInt8 myImageCopy[8192 + 2048 + 255];
+    uint8_t myImageCopy[8192 + 2048 + 255];
 
     // The top registers for the data fetchers
-    uInt8 myTops[8];
+    uint8_t myTops[8];
 
     // The bottom registers for the data fetchers
-    uInt8 myBottoms[8];
+    uint8_t myBottoms[8];
 
     // The counter registers for the data fetchers
-    uInt16 myCounters[8];
+    uint16_t myCounters[8];
 
     // The flag registers for the data fetchers
-    uInt8 myFlags[8];
+    uint8_t myFlags[8];
 
     // The music mode DF5, DF6, & DF7 enabled flags
     bool myMusicMode[3];
 
     // The random number generator register
-    uInt8 myRandomNumber;
+    uint8_t myRandomNumber;
 
     // System cycle count when the last update to music data fetchers occurred
-    Int32 mySystemCycles;
+    int mySystemCycles;
 
     // Fractional DPC music OSC clocks unused during the last update
     double myFractionalClocks;
 };
+
+}  // namespace stella
+}  // namespace ale
 
 #endif

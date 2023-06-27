@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,8 +19,11 @@
 #ifndef PADDLES_HXX
 #define PADDLES_HXX
 
-#include "m6502/src/bspf/src/bspf.hxx"
-#include "Control.hxx"
+#include "emucore/Control.hxx"
+#include "emucore/Event.hxx"
+
+namespace ale {
+namespace stella {
 
 /**
   The standard Atari 2600 pair of paddle controllers.
@@ -61,7 +64,7 @@ class Paddles : public Controller
       @param pin The pin of the controller jack to read
       @return The resistance at the specified pin
     */
-    virtual Int32 read(AnalogPin pin);
+    virtual int read(AnalogPin pin);
 
     /**
       Write the given value to the specified digital pin for this
@@ -78,5 +81,8 @@ class Paddles : public Controller
     // testing at runtime
     Event::Type myPinEvents[4][2];
 };
+
+}  // namespace stella
+}  // namespace ale
 
 #endif

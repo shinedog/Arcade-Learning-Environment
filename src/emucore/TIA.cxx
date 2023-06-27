@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -16,23 +16,28 @@
 // $Id: TIA.cxx,v 1.79 2007/02/06 23:34:33 stephena Exp $
 //============================================================================
 
-#include <cassert>
-#include <cstdlib>
-#include <cstring>
+#include <string>
 #include <iostream>
+#include <mutex>
+#include <cassert>
+#include <cstring>
 
-#include "Console.hxx"
-#include "Control.hxx"
-#include "M6502.hxx"
-#include "System.hxx"
-#include "TIA.hxx"
-#include "Serializer.hxx"
-#include "Deserializer.hxx"
-#include "Settings.hxx"
-#include "Sound.hxx"
-using namespace std;
+#include "emucore/Console.hxx"
+#include "emucore/Control.hxx"
+#include "emucore/M6502.hxx"
+#include "emucore/System.hxx"
+#include "emucore/TIA.hxx"
+#include "emucore/Serializer.hxx"
+#include "emucore/Deserializer.hxx"
+#include "emucore/Settings.hxx"
+#include "emucore/Sound.hxx"
 
 #define HBLANK 68
+
+static std::once_flag tia_init_once;
+
+namespace ale {
+namespace stella {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 TIA::TIA(const Console& console, Settings& settings)
@@ -46,11 +51,11 @@ TIA::TIA(const Console& console, Settings& settings)
       myCOLUP0(myColor[2]),
       myCOLUP1(myColor[3])
 {
-  uInt32 i;
+  uint32_t i;
 
   // Allocate buffers for two frame buffers
-  myCurrentFrameBuffer = new uInt8[160 * 300];
-  myPreviousFrameBuffer = new uInt8[160 * 300];
+  myCurrentFrameBuffer = new uint8_t[160 * 300];
+  myPreviousFrameBuffer = new uint8_t[160 * 300];
 
   myFrameGreyed = false;
   myPartialFrameFlag = false; //ALE : This was left uninitialized :(
@@ -58,13 +63,13 @@ TIA::TIA(const Console& console, Settings& settings)
   for(i = 0; i < 6; ++i)
     myBitEnabled[i] = true;
 
-  for(uInt16 x = 0; x < 2; ++x)
+  for(uint16_t x = 0; x < 2; ++x)
   {
-    for(uInt16 enabled = 0; enabled < 256; ++enabled)
+    for(uint16_t enabled = 0; enabled < 256; ++enabled)
     {
       if(enabled & PriorityBit)
       {
-        uInt8 color = 0;
+        uint8_t color = 0;
 
         if((enabled & (myP1Bit | myM1Bit)) != 0)
           color = 3;
@@ -79,7 +84,7 @@ TIA::TIA(const Console& console, Settings& settings)
       }
       else
       {
-        uInt8 color = 0;
+        uint8_t color = 0;
 
         if((enabled & myBLBit) != 0)
           color = 1;
@@ -95,17 +100,16 @@ TIA::TIA(const Console& console, Settings& settings)
     }
   }
 
-  for(i = 0; i < 640; ++i)
-    ourDisabledMaskTable[i] = 0;
-
-  // Compute all of the mask tables
-  computeBallMaskTable();
-  computeCollisionTable();
-  computeMissleMaskTable();
-  computePlayerMaskTable();
-  computePlayerPositionResetWhenTable();
-  computePlayerReflectTable();
-  computePlayfieldMaskTable();
+  std::call_once(tia_init_once, []() {
+    // Compute all of the mask tables
+    computeBallMaskTable();
+    computeCollisionTable();
+    computeMissleMaskTable();
+    computePlayerMaskTable();
+    computePlayerPositionResetWhenTable();
+    computePlayerReflectTable();
+    computePlayfieldMaskTable();
+  });
 
   // Init stats counters
   myFrameCounter = 0;
@@ -196,7 +200,7 @@ void TIA::reset()
   myDumpEnabled = false;
   myDumpDisabledCycle = 0;
 
-  myAllowHMOVEBlanks = 
+  myAllowHMOVEBlanks =
       (myConsole.properties().get(Emulation_HmoveBlanks) == "YES");
 
   if(myConsole.getFormat().compare(0, 3, "PAL") == 0)
@@ -258,7 +262,7 @@ void TIA::frameReset()
 void TIA::systemCyclesReset()
 {
   // Get the current system cycle
-  uInt32 cycles = mySystem->cycles();
+  uint32_t cycles = mySystem->cycles();
 
   // Adjust the sound cycle indicator
   mySound->adjustCycleCounter(-1 * cycles);
@@ -267,7 +271,7 @@ void TIA::systemCyclesReset()
   myDumpDisabledCycle -= cycles;
 
   // Get the current color clock the system is using
-  uInt32 clocks = cycles * 3;
+  uint32_t clocks = cycles * 3;
 
   // Adjust the clocks by this amount since we're reseting the clock to zero
   myClockWhenFrameStarted -= clocks;
@@ -277,14 +281,14 @@ void TIA::systemCyclesReset()
   myVSYNCFinishClock -= clocks;
   myLastHMOVEClock -= clocks;
 }
- 
+
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 void TIA::install(System& system)
 {
   // Remember which system I'm installed in
   mySystem = &system;
 
-  uInt16 shift = mySystem->pageShift();
+  uint16_t shift = mySystem->pageShift();
   mySystem->resetCycles();
 
   // All accesses are to this device
@@ -294,7 +298,7 @@ void TIA::install(System& system)
   access.device = this;
 
   // We're installing in a 2600 system
-  for(uInt32 i = 0; i < 8192; i += (1 << shift))
+  for(uint32_t i = 0; i < 8192; i += (1 << shift))
   {
     if((i & 0x1080) == 0x0000)
     {
@@ -307,7 +311,7 @@ void TIA::install(System& system)
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 bool TIA::save(Serializer& out)
 {
-  string device = name();
+  std::string device = name();
 
   try
   {
@@ -388,12 +392,12 @@ bool TIA::save(Serializer& out)
   }
   catch(char *msg)
   {
-    ale::Logger::Error << msg << endl;
+    ale::Logger::Error << msg << std::endl;
     return false;
   }
   catch(...)
   {
-    ale::Logger::Error << "Unknown error in save state for " << device << endl;
+    ale::Logger::Error << "Unknown error in save state for " << device << std::endl;
     return false;
   }
 
@@ -403,66 +407,66 @@ bool TIA::save(Serializer& out)
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 bool TIA::load(Deserializer& in)
 {
-  string device = name();
+  std::string device = name();
 
   try
   {
     if(in.getString() != device)
       return false;
 
-    myClockWhenFrameStarted = (Int32) in.getInt();
-    myClockStartDisplay = (Int32) in.getInt();
-    myClockStopDisplay = (Int32) in.getInt();
-    myClockAtLastUpdate = (Int32) in.getInt();
-    myClocksToEndOfScanLine = (Int32) in.getInt();
-    myScanlineCountForLastFrame = (Int32) in.getInt();
-    myCurrentScanline = (Int32) in.getInt();
-    myVSYNCFinishClock = (Int32) in.getInt();
+    myClockWhenFrameStarted = (int) in.getInt();
+    myClockStartDisplay = (int) in.getInt();
+    myClockStopDisplay = (int) in.getInt();
+    myClockAtLastUpdate = (int) in.getInt();
+    myClocksToEndOfScanLine = (int) in.getInt();
+    myScanlineCountForLastFrame = (int) in.getInt();
+    myCurrentScanline = (int) in.getInt();
+    myVSYNCFinishClock = (int) in.getInt();
 
-    myEnabledObjects = (uInt8) in.getInt();
+    myEnabledObjects = (uint8_t) in.getInt();
 
-    myVSYNC = (uInt8) in.getInt();
-    myVBLANK = (uInt8) in.getInt();
-    myNUSIZ0 = (uInt8) in.getInt();
-    myNUSIZ1 = (uInt8) in.getInt();
+    myVSYNC = (uint8_t) in.getInt();
+    myVBLANK = (uint8_t) in.getInt();
+    myNUSIZ0 = (uint8_t) in.getInt();
+    myNUSIZ1 = (uint8_t) in.getInt();
 
-    myCOLUP0 = (uInt32) in.getInt();
-    myCOLUP1 = (uInt32) in.getInt();
-    myCOLUPF = (uInt32) in.getInt();
-    myCOLUBK = (uInt32) in.getInt();
+    myCOLUP0 = (uint32_t) in.getInt();
+    myCOLUP1 = (uint32_t) in.getInt();
+    myCOLUPF = (uint32_t) in.getInt();
+    myCOLUBK = (uint32_t) in.getInt();
 
-    myCTRLPF = (uInt8) in.getInt();
-    myPlayfieldPriorityAndScore = (uInt8) in.getInt();
+    myCTRLPF = (uint8_t) in.getInt();
+    myPlayfieldPriorityAndScore = (uint8_t) in.getInt();
     myREFP0 = in.getBool();
     myREFP1 = in.getBool();
-    myPF = (uInt32) in.getInt();
-    myGRP0 = (uInt8) in.getInt();
-    myGRP1 = (uInt8) in.getInt();
-    myDGRP0 = (uInt8) in.getInt();
-    myDGRP1 = (uInt8) in.getInt();
+    myPF = (uint32_t) in.getInt();
+    myGRP0 = (uint8_t) in.getInt();
+    myGRP1 = (uint8_t) in.getInt();
+    myDGRP0 = (uint8_t) in.getInt();
+    myDGRP1 = (uint8_t) in.getInt();
     myENAM0 = in.getBool();
     myENAM1 = in.getBool();
     myENABL = in.getBool();
     myDENABL = in.getBool();
-    myHMP0 = (Int8) in.getInt();
-    myHMP1 = (Int8) in.getInt();
-    myHMM0 = (Int8) in.getInt();
-    myHMM1 = (Int8) in.getInt();
-    myHMBL = (Int8) in.getInt();
+    myHMP0 = (int8_t) in.getInt();
+    myHMP1 = (int8_t) in.getInt();
+    myHMM0 = (int8_t) in.getInt();
+    myHMM1 = (int8_t) in.getInt();
+    myHMBL = (int8_t) in.getInt();
     myVDELP0 = in.getBool();
     myVDELP1 = in.getBool();
     myVDELBL = in.getBool();
     myRESMP0 = in.getBool();
     myRESMP1 = in.getBool();
-    myCollision = (uInt16) in.getInt();
-    myPOSP0 = (Int16) in.getInt();
-    myPOSP1 = (Int16) in.getInt();
-    myPOSM0 = (Int16) in.getInt();
-    myPOSM1 = (Int16) in.getInt();
-    myPOSBL = (Int16) in.getInt();
+    myCollision = (uint16_t) in.getInt();
+    myPOSP0 = (int16_t) in.getInt();
+    myPOSP1 = (int16_t) in.getInt();
+    myPOSM0 = (int16_t) in.getInt();
+    myPOSM1 = (int16_t) in.getInt();
+    myPOSBL = (int16_t) in.getInt();
 
-    myCurrentGRP0 = (uInt8) in.getInt();
-    myCurrentGRP1 = (uInt8) in.getInt();
+    myCurrentGRP0 = (uint8_t) in.getInt();
+    myCurrentGRP1 = (uint8_t) in.getInt();
 
 // pointers
 //  myCurrentBLMask = ourBallMaskTable[0][0];
@@ -472,13 +476,13 @@ bool TIA::load(Deserializer& in)
 //  myCurrentP1Mask = ourPlayerMaskTable[0][0][0];
 //  myCurrentPFMask = ourPlayfieldTable[0];
 
-    myLastHMOVEClock = (Int32) in.getInt();
+    myLastHMOVEClock = (int) in.getInt();
     myHMOVEBlankEnabled = in.getBool();
     myM0CosmicArkMotionEnabled = in.getBool();
-    myM0CosmicArkCounter = (uInt32) in.getInt();
+    myM0CosmicArkCounter = (uint32_t) in.getInt();
 
     myDumpEnabled = in.getBool();
-    myDumpDisabledCycle = (Int32) in.getInt();
+    myDumpDisabledCycle = (int) in.getInt();
 
     // Load the sound sample stuff ...
     mySound->load(in);
@@ -488,12 +492,12 @@ bool TIA::load(Deserializer& in)
   }
   catch(char *msg)
   {
-    ale::Logger::Error << msg << endl;
+    ale::Logger::Error << msg << std::endl;
     return false;
   }
   catch(...)
   {
-    ale::Logger::Error << "Unknown error in load state for " << device << endl;
+    ale::Logger::Error << "Unknown error in load state for " << device << std::endl;
     return false;
   }
 
@@ -517,7 +521,7 @@ void TIA::update()
 
   // TODO: have code here that handles errors....
 
-  uInt32 totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
+  uint32_t totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
   myCurrentScanline = totalClocks / 228;
 
   if(myPartialFrameFlag) {
@@ -533,7 +537,7 @@ void TIA::update()
 inline void TIA::startFrame()
 {
   // This stuff should only happen at the beginning of a new frame.
-  uInt8* tmp = myCurrentFrameBuffer;
+  uint8_t* tmp = myCurrentFrameBuffer;
   myCurrentFrameBuffer = myPreviousFrameBuffer;
   myPreviousFrameBuffer = tmp;
 
@@ -541,7 +545,7 @@ inline void TIA::startFrame()
   // so that we can adjust the frame's starting clock by this amount.  This
   // is necessary since some games position objects during VSYNC and the
   // TIA's internal counters are not reset by VSYNC.
-  uInt32 clocks = ((mySystem->cycles() * 3) - myClockWhenFrameStarted) % 228;
+  uint32_t clocks = ((mySystem->cycles() * 3) - myClockWhenFrameStarted) % 228;
 
   // Ask the system to reset the cycle count so it doesn't overflow
   mySystem->resetCycles();
@@ -574,7 +578,7 @@ inline void TIA::startFrame()
       myCOLUPF &= 0xfefefefe;
       myCOLUBK &= 0xfefefefe;
     }
-  }   
+  }
 
   myFrameGreyed = false;
 }
@@ -592,126 +596,31 @@ inline void TIA::endFrame()
   myFrameGreyed = false;
 }
 
-#ifdef DEBUGGER_SUPPORT
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIA::updateScanline()
+uint32_t TIA::width() const
 {
-  // Start a new frame if the old one was finished
-  if(!myPartialFrameFlag) {
-    startFrame();
-  }
-
-  // grey out old frame contents
-  if(!myFrameGreyed) greyOutFrame();
-  myFrameGreyed = true;
-
-  // true either way:
-  myPartialFrameFlag = true;
-
-  int totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
-  int endClock = ((totalClocks + 228) / 228) * 228;
-
-  int clock;
-  do {
-      mySystem->m6502().execute(1);
-      clock = mySystem->cycles() * 3;
-      updateFrame(clock);
-  } while(clock < endClock);
-
-  totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
-  myCurrentScanline = totalClocks / 228;
-
-  // if we finished the frame, get ready for the next one
-  if(!myPartialFrameFlag)
-    endFrame();
+  return myFrameWidth;
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIA::updateScanlineByStep()
+uint32_t TIA::height() const
 {
-  // Start a new frame if the old one was finished
-  if(!myPartialFrameFlag) {
-    startFrame();
-  }
-
-  // grey out old frame contents
-  if(!myFrameGreyed) greyOutFrame();
-  myFrameGreyed = true;
-
-  // true either way:
-  myPartialFrameFlag = true;
-
-  int totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
-
-  // Update frame by one CPU instruction/color clock
-  mySystem->m6502().execute(1);
-  updateFrame(mySystem->cycles() * 3);
-
-  totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
-  myCurrentScanline = totalClocks / 228;
-
-  // if we finished the frame, get ready for the next one
-  if(!myPartialFrameFlag)
-    endFrame();
+  return myFrameHeight;
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIA::updateScanlineByTrace(int target)
-{
-  // Start a new frame if the old one was finished
-  if(!myPartialFrameFlag) {
-    startFrame();
-  }
-
-  // grey out old frame contents
-  if(!myFrameGreyed) greyOutFrame();
-  myFrameGreyed = true;
-
-  // true either way:
-  myPartialFrameFlag = true;
-
-  int totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
-
-  while(mySystem->m6502().getPC() != target)
-  {
-    mySystem->m6502().execute(1);
-    updateFrame(mySystem->cycles() * 3);
-  }
-
-  totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
-  myCurrentScanline = totalClocks / 228;
-
-  // if we finished the frame, get ready for the next one
-  if(!myPartialFrameFlag)
-    endFrame();
-}
-#endif
-
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt32 TIA::width() const 
-{
-  return myFrameWidth; 
-}
-
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt32 TIA::height() const 
-{
-  return myFrameHeight; 
-}
-
-// - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt32 TIA::scanlines() const
+uint32_t TIA::scanlines() const
 {
   // calculate the current scanline
-  uInt32 totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
+  uint32_t totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
   return totalClocks/228;
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt32 TIA::clocksThisLine() const
+uint32_t TIA::clocksThisLine() const
 {
   // calculate the current scanline
-  uInt32 totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
+  uint32_t totalClocks = (mySystem->cycles() * 3) - myClockWhenFrameStarted;
   return totalClocks%228;
 }
 
@@ -725,9 +634,9 @@ void TIA::setSound(Sound& sound)
 void TIA::computeBallMaskTable()
 {
   // First, calculate masks for alignment 0
-  for(Int32 size = 0; size < 4; ++size)
+  for(int size = 0; size < 4; ++size)
   {
-    Int32 x;
+    int x;
 
     // Set all of the masks to false to start with
     for(x = 0; x < 160; ++x)
@@ -752,13 +661,13 @@ void TIA::computeBallMaskTable()
   }
 
   // Now, copy data for alignments of 1, 2 and 3
-  for(uInt32 align = 1; align < 4; ++align)
+  for(uint32_t align = 1; align < 4; ++align)
   {
-    for(uInt32 size = 0; size < 4; ++size)
+    for(uint32_t size = 0; size < 4; ++size)
     {
-      for(uInt32 x = 0; x < 320; ++x)
+      for(uint32_t x = 0; x < 320; ++x)
       {
-        ourBallMaskTable[align][size][x] = 
+        ourBallMaskTable[align][size][x] =
             ourBallMaskTable[0][size][(x + 320 - align) % 320];
       }
     }
@@ -768,8 +677,8 @@ void TIA::computeBallMaskTable()
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 void TIA::computeCollisionTable()
 {
-  for(uInt8 i = 0; i < 64; ++i)
-  { 
+  for(uint8_t i = 0; i < 64; ++i)
+  {
     ourCollisionTable[i] = 0;
 
     if((i & myM0Bit) && (i & myP1Bit))    // M0-P1
@@ -823,7 +732,7 @@ void TIA::computeCollisionTable()
 void TIA::computeMissleMaskTable()
 {
   // First, calculate masks for alignment 0
-  Int32 x, size, number;
+  int x, size, number;
 
   // Clear the missle table to start with
   for(number = 0; number < 8; ++number)
@@ -891,13 +800,13 @@ void TIA::computeMissleMaskTable()
 
       // Copy data into wrap-around area
       for(x = 0; x < 160; ++x)
-        ourMissleMaskTable[0][number][size][x + 160] = 
+        ourMissleMaskTable[0][number][size][x + 160] =
           ourMissleMaskTable[0][number][size][x];
     }
   }
 
   // Now, copy data for alignments of 1, 2 and 3
-  for(uInt32 align = 1; align < 4; ++align)
+  for(uint32_t align = 1; align < 4; ++align)
   {
     for(number = 0; number < 8; ++number)
     {
@@ -905,7 +814,7 @@ void TIA::computeMissleMaskTable()
       {
         for(x = 0; x < 320; ++x)
         {
-          ourMissleMaskTable[align][number][size][x] = 
+          ourMissleMaskTable[align][number][size][x] =
             ourMissleMaskTable[0][number][size][(x + 320 - align) % 320];
         }
       }
@@ -917,7 +826,7 @@ void TIA::computeMissleMaskTable()
 void TIA::computePlayerMaskTable()
 {
   // First, calculate masks for alignment 0
-  Int32 x, enable, mode;
+  int x, enable, mode;
 
   // Set the player mask table to all zeros
   for(enable = 0; enable < 2; ++enable)
@@ -991,18 +900,18 @@ void TIA::computePlayerMaskTable()
             ourPlayerMaskTable[0][enable][mode][x % 160] = 0x80 >> ((x - 1)/4);
         }
       }
-  
+
       // Copy data into wrap-around area
       for(x = 0; x < 160; ++x)
       {
-        ourPlayerMaskTable[0][enable][mode][x + 160] = 
+        ourPlayerMaskTable[0][enable][mode][x + 160] =
             ourPlayerMaskTable[0][enable][mode][x];
       }
     }
   }
 
   // Now, copy data for alignments of 1, 2 and 3
-  for(uInt32 align = 1; align < 4; ++align)
+  for(uint32_t align = 1; align < 4; ++align)
   {
     for(enable = 0; enable < 2; ++enable)
     {
@@ -1021,7 +930,7 @@ void TIA::computePlayerMaskTable()
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 void TIA::computePlayerPositionResetWhenTable()
 {
-  uInt32 mode, oldx, newx;
+  uint32_t mode, oldx, newx;
 
   // Loop through all player modes, all old player positions, and all new
   // player positions and determine where the new position is located:
@@ -1136,7 +1045,7 @@ void TIA::computePlayerPositionResetWhenTable()
       }
 
       // Let's do a sanity check on our table entries
-      uInt32 s1 = 0, s2 = 0;
+      uint32_t s1 = 0, s2 = 0;
       for(newx = 0; newx < 160; ++newx)
       {
         if(ourPlayerPositionResetWhenTable[mode][oldx][newx] == -1)
@@ -1152,23 +1061,23 @@ void TIA::computePlayerPositionResetWhenTable()
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 void TIA::computePlayerReflectTable()
 {
-  for(uInt16 i = 0; i < 256; ++i)
+  for(uint16_t i = 0; i < 256; ++i)
   {
-    uInt8 r = 0;
+    uint8_t r = 0;
 
-    for(uInt16 t = 1; t <= 128; t *= 2)
+    for(uint16_t t = 1; t <= 128; t *= 2)
     {
       r = (r << 1) | ((i & t) ? 0x01 : 0x00);
     }
 
     ourPlayerReflectTable[i] = r;
-  } 
+  }
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 void TIA::computePlayfieldMaskTable()
 {
-  Int32 x;
+  int x;
 
   // Compute playfield mask table for non-reflected mode
   for(x = 0; x < 160; ++x)
@@ -1177,13 +1086,13 @@ void TIA::computePlayfieldMaskTable()
       ourPlayfieldTable[0][x] = 0x00001 << (x / 4);
     else if(x < 48)
       ourPlayfieldTable[0][x] = 0x00800 >> ((x - 16) / 4);
-    else if(x < 80) 
+    else if(x < 80)
       ourPlayfieldTable[0][x] = 0x01000 << ((x - 48) / 4);
-    else if(x < 96) 
+    else if(x < 96)
       ourPlayfieldTable[0][x] = 0x00001 << ((x - 80) / 4);
     else if(x < 128)
       ourPlayfieldTable[0][x] = 0x00800 >> ((x - 96) / 4);
-    else if(x < 160) 
+    else if(x < 160)
       ourPlayfieldTable[0][x] = 0x01000 << ((x - 128) / 4);
   }
 
@@ -1194,60 +1103,60 @@ void TIA::computePlayfieldMaskTable()
       ourPlayfieldTable[1][x] = 0x00001 << (x / 4);
     else if(x < 48)
       ourPlayfieldTable[1][x] = 0x00800 >> ((x - 16) / 4);
-    else if(x < 80) 
+    else if(x < 80)
       ourPlayfieldTable[1][x] = 0x01000 << ((x - 48) / 4);
-    else if(x < 112) 
+    else if(x < 112)
       ourPlayfieldTable[1][x] = 0x80000 >> ((x - 80) / 4);
-    else if(x < 144) 
+    else if(x < 144)
       ourPlayfieldTable[1][x] = 0x00010 << ((x - 112) / 4);
-    else if(x < 160) 
+    else if(x < 160)
       ourPlayfieldTable[1][x] = 0x00008 >> ((x - 144) / 4);
   }
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
+inline void TIA::updateFrameScanline(uint32_t clocksToUpdate, uint32_t hpos)
 {
   // Calculate the ending frame pointer value
-  uInt8* ending = myFramePointer + clocksToUpdate;
+  uint8_t* ending = myFramePointer + clocksToUpdate;
 
   // See if we're in the vertical blank region
   if(myVBLANK & 0x02)
   {
-    memset(myFramePointer, 0, clocksToUpdate);
+    std::memset(myFramePointer, 0, clocksToUpdate);
   }
   // Handle all other possible combinations
   else
   {
     switch(myEnabledObjects | myPlayfieldPriorityAndScore)
     {
-      // Background 
+      // Background
       case 0x00:
       case 0x00 | ScoreBit:
       case 0x00 | PriorityBit:
       case 0x00 | PriorityBit | ScoreBit:
       {
-        memset(myFramePointer, myCOLUBK, clocksToUpdate);
+        std::memset(myFramePointer, myCOLUBK, clocksToUpdate);
         break;
       }
 
       // Playfield is enabled and the score bit is not set
-      case myPFBit: 
+      case myPFBit:
       case myPFBit | PriorityBit:
       {
-        uInt32* mask = &myCurrentPFMask[hpos];
+        const uint32_t* mask = &myCurrentPFMask[hpos];
 
-        // Update a uInt8 at a time until reaching a uInt32 boundary
+        // Update a uint8_t at a time until reaching a uint32_t boundary
         for(; ((uintptr_t)myFramePointer & 0x03) && (myFramePointer < ending);
             ++myFramePointer, ++mask)
         {
           *myFramePointer = (myPF & *mask) ? myCOLUPF : myCOLUBK;
         }
 
-        // Now, update a uInt32 at a time
+        // Now, update a uint32_t at a time
         for(; myFramePointer < ending; myFramePointer += 4, mask += 4)
         {
-          *((uInt32*)myFramePointer) = (myPF & *mask) ? myCOLUPF : myCOLUBK;
+          *((uint32_t*)myFramePointer) = (myPF & *mask) ? myCOLUPF : myCOLUBK;
         }
         break;
       }
@@ -1256,21 +1165,21 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myPFBit | ScoreBit:
       case myPFBit | ScoreBit | PriorityBit:
       {
-        uInt32* mask = &myCurrentPFMask[hpos];
+        const uint32_t* mask = &myCurrentPFMask[hpos];
 
-        // Update a uInt8 at a time until reaching a uInt32 boundary
-        for(; ((uintptr_t)myFramePointer & 0x03) && (myFramePointer < ending); 
+        // Update a uint8_t at a time until reaching a uint32_t boundary
+        for(; ((uintptr_t)myFramePointer & 0x03) && (myFramePointer < ending);
             ++myFramePointer, ++mask, ++hpos)
         {
-          *myFramePointer = (myPF & *mask) ? 
+          *myFramePointer = (myPF & *mask) ?
               (hpos < 80 ? myCOLUP0 : myCOLUP1) : myCOLUBK;
         }
 
-        // Now, update a uInt32 at a time
-        for(; myFramePointer < ending; 
+        // Now, update a uint32_t at a time
+        for(; myFramePointer < ending;
             myFramePointer += 4, mask += 4, hpos += 4)
         {
-          *((uInt32*)myFramePointer) = (myPF & *mask) ?
+          *((uint32_t*)myFramePointer) = (myPF & *mask) ?
               (hpos < 80 ? myCOLUP0 : myCOLUP1) : myCOLUBK;
         }
         break;
@@ -1282,13 +1191,13 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myP0Bit | PriorityBit:
       case myP0Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mP0 = &myCurrentP0Mask[hpos];
+        const uint8_t* mP0 = &myCurrentP0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP0)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mP0 += 4; myFramePointer += 4;
           }
           else
@@ -1306,13 +1215,13 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myP1Bit | PriorityBit:
       case myP1Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mP1 += 4; myFramePointer += 4;
           }
           else
@@ -1330,20 +1239,20 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myP0Bit | myP1Bit | PriorityBit:
       case myP0Bit | myP1Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mP0 = &myCurrentP0Mask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint8_t* mP0 = &myCurrentP0Mask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP0 &&
-              !*(uInt32*)mP1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP0 &&
+              !*(uint32_t*)mP1)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mP0 += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            *myFramePointer = (myCurrentGRP0 & *mP0) ? 
+            *myFramePointer = (myCurrentGRP0 & *mP0) ?
                 myCOLUP0 : ((myCurrentGRP1 & *mP1) ? myCOLUP1 : myCOLUBK);
 
             if((myCurrentGRP0 & *mP0) && (myCurrentGRP1 & *mP1))
@@ -1361,13 +1270,13 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myM0Bit | PriorityBit:
       case myM0Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mM0 = &myCurrentM0Mask[hpos];
+        const uint8_t* mM0 = &myCurrentM0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mM0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mM0)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mM0 += 4; myFramePointer += 4;
           }
           else
@@ -1385,13 +1294,13 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myM1Bit | PriorityBit:
       case myM1Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mM1 = &myCurrentM1Mask[hpos];
+        const uint8_t* mM1 = &myCurrentM1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mM1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mM1)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mM1 += 4; myFramePointer += 4;
           }
           else
@@ -1409,13 +1318,13 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | PriorityBit:
       case myBLBit | ScoreBit | PriorityBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; myFramePointer += 4;
           }
           else
@@ -1433,14 +1342,14 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myM0Bit | myM1Bit | PriorityBit:
       case myM0Bit | myM1Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mM0 = &myCurrentM0Mask[hpos];
-        uInt8* mM1 = &myCurrentM1Mask[hpos];
+        const uint8_t* mM0 = &myCurrentM0Mask[hpos];
+        const uint8_t* mM1 = &myCurrentM1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mM0 && !*(uInt32*)mM1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mM0 && !*(uint32_t*)mM1)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mM0 += 4; mM1 += 4; myFramePointer += 4;
           }
           else
@@ -1460,14 +1369,14 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myM0Bit:
       case myBLBit | myM0Bit | ScoreBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mM0 = &myCurrentM0Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mM0 = &myCurrentM0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL && !*(uInt32*)mM0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL && !*(uint32_t*)mM0)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mM0 += 4; myFramePointer += 4;
           }
           else
@@ -1487,14 +1396,14 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myM0Bit | PriorityBit:
       case myBLBit | myM0Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mM0 = &myCurrentM0Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mM0 = &myCurrentM0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL && !*(uInt32*)mM0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL && !*(uint32_t*)mM0)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mM0 += 4; myFramePointer += 4;
           }
           else
@@ -1514,15 +1423,15 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myM1Bit:
       case myBLBit | myM1Bit | ScoreBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mM1 = &myCurrentM1Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mM1 = &myCurrentM1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL && 
-              !*(uInt32*)mM1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL &&
+              !*(uint32_t*)mM1)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mM1 += 4; myFramePointer += 4;
           }
           else
@@ -1542,15 +1451,15 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myM1Bit | PriorityBit:
       case myBLBit | myM1Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mM1 = &myCurrentM1Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mM1 = &myCurrentM1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL && 
-              !*(uInt32*)mM1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL &&
+              !*(uint32_t*)mM1)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mM1 += 4; myFramePointer += 4;
           }
           else
@@ -1570,19 +1479,19 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myP1Bit:
       case myBLBit | myP1Bit | ScoreBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1 && !*(uInt32*)mBL)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1 && !*(uint32_t*)mBL)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            *myFramePointer = (myCurrentGRP1 & *mP1) ? myCOLUP1 : 
+            *myFramePointer = (myCurrentGRP1 & *mP1) ? myCOLUP1 :
                 (*mBL ? myCOLUPF : myCOLUBK);
 
             if(*mBL && (myCurrentGRP1 & *mP1))
@@ -1598,19 +1507,19 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myP1Bit | PriorityBit:
       case myBLBit | myP1Bit | PriorityBit | ScoreBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1 && !*(uInt32*)mBL)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1 && !*(uint32_t*)mBL)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            *myFramePointer = *mBL ? myCOLUPF : 
+            *myFramePointer = *mBL ? myCOLUPF :
                 ((myCurrentGRP1 & *mP1) ? myCOLUP1 : myCOLUBK);
 
             if(*mBL && (myCurrentGRP1 & *mP1))
@@ -1625,19 +1534,19 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       // Playfield and Player 0 are enabled and playfield priority is not set
       case myPFBit | myP0Bit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mP0 = &myCurrentP0Mask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mP0 = &myCurrentP0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP0)
           {
-            *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mP0 += 4; myFramePointer += 4;
           }
           else
           {
-            *myFramePointer = (myCurrentGRP0 & *mP0) ? 
+            *myFramePointer = (myCurrentGRP0 & *mP0) ?
                   myCOLUP0 : ((myPF & *mPF) ? myCOLUPF : myCOLUBK);
 
             if((myPF & *mPF) && (myCurrentGRP0 & *mP0))
@@ -1653,19 +1562,19 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       // Playfield and Player 0 are enabled and playfield priority is set
       case myPFBit | myP0Bit | PriorityBit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mP0 = &myCurrentP0Mask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mP0 = &myCurrentP0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP0)
           {
-            *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mP0 += 4; myFramePointer += 4;
           }
           else
           {
-            *myFramePointer = (myPF & *mPF) ? myCOLUPF : 
+            *myFramePointer = (myPF & *mPF) ? myCOLUPF :
                 ((myCurrentGRP0 & *mP0) ? myCOLUP0 : myCOLUBK);
 
             if((myPF & *mPF) && (myCurrentGRP0 & *mP0))
@@ -1681,19 +1590,19 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       // Playfield and Player 1 are enabled and playfield priority is not set
       case myPFBit | myP1Bit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1)
           {
-            *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            *myFramePointer = (myCurrentGRP1 & *mP1) ? 
+            *myFramePointer = (myCurrentGRP1 & *mP1) ?
                   myCOLUP1 : ((myPF & *mPF) ? myCOLUPF : myCOLUBK);
 
             if((myPF & *mPF) && (myCurrentGRP1 & *mP1))
@@ -1709,19 +1618,19 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       // Playfield and Player 1 are enabled and playfield priority is set
       case myPFBit | myP1Bit | PriorityBit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1)
           {
-            *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            *myFramePointer = (myPF & *mPF) ? myCOLUPF : 
+            *myFramePointer = (myPF & *mPF) ? myCOLUPF :
                 ((myCurrentGRP1 & *mP1) ? myCOLUP1 : myCOLUBK);
 
             if((myPF & *mPF) && (myCurrentGRP1 & *mP1))
@@ -1738,14 +1647,14 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       case myPFBit | myBLBit:
       case myPFBit | myBLBit | PriorityBit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mBL = &myCurrentBLMask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL)
           {
-            *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mBL += 4; myFramePointer += 4;
           }
           else
@@ -1766,7 +1675,7 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
       {
         for(; myFramePointer < ending; ++myFramePointer, ++hpos)
         {
-          uInt8 enabled = (myPF & myCurrentPFMask[hpos]) ? myPFBit : 0;
+          uint8_t enabled = (myPF & myCurrentPFMask[hpos]) ? myPFBit : 0;
 
           if((myEnabledObjects & myBLBit) && myCurrentBLMask[hpos])
             enabled |= myBLBit;
@@ -1787,7 +1696,7 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
           *myFramePointer = myColor[myPriorityEncoder[hpos < 80 ? 0 : 1]
               [enabled | myPlayfieldPriorityAndScore]];
         }
-        break;  
+        break;
       }
     }
   }
@@ -1795,12 +1704,12 @@ inline void TIA::updateFrameScanline(uInt32 clocksToUpdate, uInt32 hpos)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-inline void TIA::updateFrame(Int32 clock)
+inline void TIA::updateFrame(int clock)
 {
   // See if we're in the nondisplayable portion of the screen or if
   // we've already updated this portion of the screen
-  if((clock < myClockStartDisplay) || 
-      (myClockAtLastUpdate >= myClockStopDisplay) ||  
+  if((clock < myClockStartDisplay) ||
+      (myClockAtLastUpdate >= myClockStopDisplay) ||
       (myClockAtLastUpdate >= clock))
   {
     return;
@@ -1816,10 +1725,10 @@ inline void TIA::updateFrame(Int32 clock)
   do
   {
     // Compute the number of clocks we're going to update
-    Int32 clocksToUpdate = 0;
+    int clocksToUpdate = 0;
 
     // Remember how many clocks we are from the left side of the screen
-    Int32 clocksFromStartOfScanLine = 228 - myClocksToEndOfScanLine;
+    int clocksFromStartOfScanLine = 228 - myClocksToEndOfScanLine;
 
     // See if we're updating more than the current scanline
     if(clock > (myClockAtLastUpdate + myClocksToEndOfScanLine))
@@ -1837,12 +1746,12 @@ inline void TIA::updateFrame(Int32 clock)
       myClockAtLastUpdate = clock;
     }
 
-    Int32 startOfScanLine = HBLANK + myFrameXStart;
+    int startOfScanLine = HBLANK + myFrameXStart;
 
     // Skip over as many horizontal blank clocks as we can
     if(clocksFromStartOfScanLine < startOfScanLine)
     {
-      uInt32 tmp;
+      uint32_t tmp;
 
       if((startOfScanLine - clocksFromStartOfScanLine) < clocksToUpdate)
         tmp = startOfScanLine - clocksFromStartOfScanLine;
@@ -1854,13 +1763,13 @@ inline void TIA::updateFrame(Int32 clock)
     }
 
     // Remember frame pointer in case HMOVE blanks need to be handled
-    uInt8* oldFramePointer = myFramePointer;
+    uint8_t* oldFramePointer = myFramePointer;
 
     // Update as much of the scanline as we can
     if(clocksToUpdate != 0)
     {
       if (fastUpdate)
-        updateFrameScanlineFast(clocksToUpdate, 
+        updateFrameScanlineFast(clocksToUpdate,
           clocksFromStartOfScanLine - HBLANK);
       else
         updateFrameScanline(clocksToUpdate, clocksFromStartOfScanLine - HBLANK);
@@ -1870,8 +1779,8 @@ inline void TIA::updateFrame(Int32 clock)
     if(myHMOVEBlankEnabled && (startOfScanLine < HBLANK + 8) &&
         (clocksFromStartOfScanLine < (HBLANK + 8)))
     {
-      Int32 blanks = (HBLANK + 8) - clocksFromStartOfScanLine;
-      memset(oldFramePointer, 0, blanks);
+      int blanks = (HBLANK + 8) - clocksFromStartOfScanLine;
+      std::memset(oldFramePointer, 0, blanks);
 
       if((clocksToUpdate + clocksFromStartOfScanLine) >= (HBLANK + 8))
       {
@@ -1884,11 +1793,11 @@ inline void TIA::updateFrame(Int32 clock)
     {
       myFramePointer -= (160 - myFrameWidth - myFrameXStart);
 
-      // Yes, so set PF mask based on current CTRLPF reflection state 
+      // Yes, so set PF mask based on current CTRLPF reflection state
       myCurrentPFMask = ourPlayfieldTable[myCTRLPF & 0x01];
 
       // TODO: These should be reset right after the first copy of the player
-      // has passed.  However, for now we'll just reset at the end of the 
+      // has passed.  However, for now we'll just reset at the end of the
       // scanline since the other way would be to slow (01/21/99).
       myCurrentP0Mask = &ourPlayerMaskTable[myPOSP0 & 0x03]
           [0][myNUSIZ0 & 0x07][160 - (myPOSP0 & 0xFC)];
@@ -1899,7 +1808,7 @@ inline void TIA::updateFrame(Int32 clock)
       if(myM0CosmicArkMotionEnabled)
       {
         // Movement table associated with the bug
-        static uInt32 m[4] = {18, 33, 0, 17};
+        static uint32_t m[4] = {18, 33, 0, 17};
 
         myM0CosmicArkCounter = (myM0CosmicArkCounter + 1) & 3;
         myPOSM0 -= m[myM0CosmicArkCounter];
@@ -1918,7 +1827,7 @@ inline void TIA::updateFrame(Int32 clock)
         }
         else if(myM0CosmicArkCounter == 2)
         {
-          // Missle is disabled on this line 
+          // Missle is disabled on this line
           myCurrentM0Mask = &ourDisabledMaskTable[0];
         }
         else
@@ -1926,16 +1835,16 @@ inline void TIA::updateFrame(Int32 clock)
           myCurrentM0Mask = &ourMissleMaskTable[myPOSM0 & 0x03]
               [myNUSIZ0 & 0x07][(myNUSIZ0 & 0x30) >> 4][160 - (myPOSM0 & 0xFC)];
         }
-      } 
+      }
     }
-  } 
+  }
   while(myClockAtLastUpdate < clock);
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 inline void TIA::waitHorizontalSync()
 {
-  uInt32 cyclesToEndOfLine = 76 - ((mySystem->cycles() - 
+  uint32_t cyclesToEndOfLine = 76 - ((mySystem->cycles() -
       (myClockWhenFrameStarted / 3)) % 76);
 
   if(cyclesToEndOfLine < 76)
@@ -1952,7 +1861,7 @@ void TIA::greyOutFrame()
 
   for(unsigned int s = c; s < (myHeight + myYStart); s++)
       for(unsigned int i = 0; i < 160; i++) {
-          uInt8 tmp = myCurrentFrameBuffer[ (s - myYStart) * 160 + i] & 0x0f;
+          uint8_t tmp = myCurrentFrameBuffer[ (s - myYStart) * 160 + i] & 0x0f;
           tmp >>= 1;
           myCurrentFrameBuffer[ (s - myYStart) * 160 + i] = tmp;
       }
@@ -1962,56 +1871,56 @@ void TIA::greyOutFrame()
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 void TIA::clearBuffers()
 {
-  for(uInt32 i = 0; i < 160 * 300; ++i)
+  for(uint32_t i = 0; i < 160 * 300; ++i)
   {
     myCurrentFrameBuffer[i] = myPreviousFrameBuffer[i] = 0;
   }
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 TIA::peek(uInt16 addr)
+uint8_t TIA::peek(uint16_t addr)
 {
   // Update frame to current color clock before we look at anything!
   updateFrame(mySystem->cycles() * 3);
 
-  uInt8 noise = mySystem->getDataBusState() & 0x3F;
+  uint8_t noise = mySystem->getDataBusState() & 0x3F;
 
   switch(addr & 0x000f)
   {
     case 0x00:    // CXM0P
-      return ((myCollision & 0x0001) ? 0x80 : 0x00) | 
+      return ((myCollision & 0x0001) ? 0x80 : 0x00) |
           ((myCollision & 0x0002) ? 0x40 : 0x00) | noise;
 
     case 0x01:    // CXM1P
-      return ((myCollision & 0x0004) ? 0x80 : 0x00) | 
+      return ((myCollision & 0x0004) ? 0x80 : 0x00) |
           ((myCollision & 0x0008) ? 0x40 : 0x00) | noise;
 
     case 0x02:    // CXP0FB
-      return ((myCollision & 0x0010) ? 0x80 : 0x00) | 
+      return ((myCollision & 0x0010) ? 0x80 : 0x00) |
           ((myCollision & 0x0020) ? 0x40 : 0x00) | noise;
 
     case 0x03:    // CXP1FB
-      return ((myCollision & 0x0040) ? 0x80 : 0x00) | 
+      return ((myCollision & 0x0040) ? 0x80 : 0x00) |
           ((myCollision & 0x0080) ? 0x40 : 0x00) | noise;
 
     case 0x04:    // CXM0FB
-      return ((myCollision & 0x0100) ? 0x80 : 0x00) | 
+      return ((myCollision & 0x0100) ? 0x80 : 0x00) |
           ((myCollision & 0x0200) ? 0x40 : 0x00) | noise;
 
     case 0x05:    // CXM1FB
-      return ((myCollision & 0x0400) ? 0x80 : 0x00) | 
+      return ((myCollision & 0x0400) ? 0x80 : 0x00) |
           ((myCollision & 0x0800) ? 0x40 : 0x00) | noise;
 
     case 0x06:    // CXBLPF
       return ((myCollision & 0x1000) ? 0x80 : 0x00) | noise;
 
     case 0x07:    // CXPPMM
-      return ((myCollision & 0x2000) ? 0x80 : 0x00) | 
+      return ((myCollision & 0x2000) ? 0x80 : 0x00) |
           ((myCollision & 0x4000) ? 0x40 : 0x00) | noise;
 
     case 0x08:    // INPT0
     {
-      Int32 r = myConsole.controller(Controller::Left).read(Controller::Nine);
+      int r = myConsole.controller(Controller::Left).read(Controller::Nine);
       if(r == Controller::minimumResistance)
       {
         return 0x80 | noise;
@@ -2023,7 +1932,7 @@ uInt8 TIA::peek(uInt16 addr)
       else
       {
         double t = (1.6 * r * 0.01E-6);
-        uInt32 needed = (uInt32)(t * 1.19E6);
+        uint32_t needed = (uint32_t)(t * 1.19E6);
         if(mySystem->cycles() > (myDumpDisabledCycle + needed))
         {
           return 0x80 | noise;
@@ -2037,7 +1946,7 @@ uInt8 TIA::peek(uInt16 addr)
 
     case 0x09:    // INPT1
     {
-      Int32 r = myConsole.controller(Controller::Left).read(Controller::Five);
+      int r = myConsole.controller(Controller::Left).read(Controller::Five);
       if(r == Controller::minimumResistance)
       {
         return 0x80 | noise;
@@ -2049,7 +1958,7 @@ uInt8 TIA::peek(uInt16 addr)
       else
       {
         double t = (1.6 * r * 0.01E-6);
-        uInt32 needed = (uInt32)(t * 1.19E6);
+        uint32_t needed = (uint32_t)(t * 1.19E6);
         if(mySystem->cycles() > (myDumpDisabledCycle + needed))
         {
           return 0x80 | noise;
@@ -2063,7 +1972,7 @@ uInt8 TIA::peek(uInt16 addr)
 
     case 0x0A:    // INPT2
     {
-      Int32 r = myConsole.controller(Controller::Right).read(Controller::Nine);
+      int r = myConsole.controller(Controller::Right).read(Controller::Nine);
       if(r == Controller::minimumResistance)
       {
         return 0x80 | noise;
@@ -2075,7 +1984,7 @@ uInt8 TIA::peek(uInt16 addr)
       else
       {
         double t = (1.6 * r * 0.01E-6);
-        uInt32 needed = (uInt32)(t * 1.19E6);
+        uint32_t needed = (uint32_t)(t * 1.19E6);
         if(mySystem->cycles() > (myDumpDisabledCycle + needed))
         {
           return 0x80 | noise;
@@ -2089,7 +1998,7 @@ uInt8 TIA::peek(uInt16 addr)
 
     case 0x0B:    // INPT3
     {
-      Int32 r = myConsole.controller(Controller::Right).read(Controller::Five);
+      int r = myConsole.controller(Controller::Right).read(Controller::Five);
       if(r == Controller::minimumResistance)
       {
         return 0x80 | noise;
@@ -2101,7 +2010,7 @@ uInt8 TIA::peek(uInt16 addr)
       else
       {
         double t = (1.6 * r * 0.01E-6);
-        uInt32 needed = (uInt32)(t * 1.19E6);
+        uint32_t needed = (uint32_t)(t * 1.19E6);
         if(mySystem->cycles() > (myDumpDisabledCycle + needed))
         {
           return 0x80 | noise;
@@ -2130,18 +2039,18 @@ uInt8 TIA::peek(uInt16 addr)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void TIA::poke(uInt16 addr, uInt8 value)
+void TIA::poke(uint16_t addr, uint8_t value)
 {
   addr = addr & 0x003f;
 
-  Int32 clock = mySystem->cycles() * 3;
-  Int16 delay = ourPokeDelayTable[addr];
+  int clock = mySystem->cycles() * 3;
+  int16_t delay = ourPokeDelayTable[addr];
 
   // See if this is a poke to a PF register
   if(delay == -1)
   {
-    static uInt32 d[4] = {4, 5, 2, 3};
-    Int32 x = ((clock - myClockWhenFrameStarted) % 228);
+    static uint32_t d[4] = {4, 5, 2, 3};
+    int x = ((clock - myClockWhenFrameStarted) % 228);
     delay = d[(x / 3) & 3];
   }
 
@@ -2163,8 +2072,8 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
       if(myVSYNC & 0x02)
       {
-        // Indicate when VSYNC should be finished.  This should really 
-        // be 3 * 228 according to Atari's documentation, however, some 
+        // Indicate when VSYNC should be finished.  This should really
+        // be 3 * 228 according to Atari's documentation, however, some
         // games don't supply the full 3 scanlines of VSYNC.
         myVSYNCFinishClock = clock + 228;
       }
@@ -2205,7 +2114,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
       // we test here for follow-on writes which should be ignored as
       // far as halting the processor is concerned.
       //
-      // TODO - 08-30-2006: This halting isn't correct since it's 
+      // TODO - 08-30-2006: This halting isn't correct since it's
       // still halting on the original write.  The 6507 emulation
       // should be expanded to include a READY line.
       if(mySystem->m6502().lastAccessWasRead())
@@ -2218,7 +2127,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x03:    // Reset horizontal sync counter
     {
-//      cerr << "TIA Poke: " << hex << addr << endl;
+//      std::cerr << "TIA Poke: " << hex << addr << std::endl;
       break;
     }
 
@@ -2256,7 +2165,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x06:    // Color-Luminance Player 0
     {
-      uInt32 color = (uInt32)(value & 0xfe);
+      uint32_t color = (uint32_t)(value & 0xfe);
       if(myColorLossEnabled && (myScanlineCountForLastFrame & 0x01))
       {
         color |= 0x01;
@@ -2267,7 +2176,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x07:    // Color-Luminance Player 1
     {
-      uInt32 color = (uInt32)(value & 0xfe);
+      uint32_t color = (uint32_t)(value & 0xfe);
       if(myColorLossEnabled && (myScanlineCountForLastFrame & 0x01))
       {
         color |= 0x01;
@@ -2278,7 +2187,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x08:    // Color-Luminance Playfield
     {
-      uInt32 color = (uInt32)(value & 0xfe);
+      uint32_t color = (uint32_t)(value & 0xfe);
       if(myColorLossEnabled && (myScanlineCountForLastFrame & 0x01))
       {
         color |= 0x01;
@@ -2289,7 +2198,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x09:    // Color-Luminance Background
     {
-      uInt32 color = (uInt32)(value & 0xfe);
+      uint32_t color = (uint32_t)(value & 0xfe);
       if(myColorLossEnabled && (myScanlineCountForLastFrame & 0x01))
       {
         color |= 0x01;
@@ -2303,11 +2212,11 @@ void TIA::poke(uInt16 addr, uInt8 value)
       myCTRLPF = value;
 
       // The playfield priority and score bits from the control register
-      // are accessed when the frame is being drawn.  We precompute the 
+      // are accessed when the frame is being drawn.  We precompute the
       // necessary value here so we can save time while drawing.
       myPlayfieldPriorityAndScore = ((myCTRLPF & 0x06) << 5);
 
-      // Update the playfield mask based on reflection state if 
+      // Update the playfield mask based on reflection state if
       // we're still on the left hand side of the playfield
       if(((clock - myClockWhenFrameStarted) % 228) < (68 + 79))
       {
@@ -2356,7 +2265,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x0E:    // Playfield register byte 1
     {
-      myPF = (myPF & 0x000FF00F) | ((uInt32)value << 4);
+      myPF = (myPF & 0x000FF00F) | ((uint32_t)value << 4);
 
       if(!myBitEnabled[TIA::PF] || myPF == 0)
         myEnabledObjects &= ~myPFBit;
@@ -2368,7 +2277,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x0F:    // Playfield register byte 2
     {
-      myPF = (myPF & 0x00000FFF) | ((uInt32)value << 12);
+      myPF = (myPF & 0x00000FFF) | ((uint32_t)value << 12);
 
       if(!myBitEnabled[TIA::PF] || myPF == 0)
         myEnabledObjects &= ~myPFBit;
@@ -2380,11 +2289,11 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x10:    // Reset Player 0
     {
-      Int32 hpos = (clock - myClockWhenFrameStarted) % 228;
-      Int32 newx = hpos < HBLANK ? 3 : (((hpos - HBLANK) + 5) % 160);
+      int hpos = (clock - myClockWhenFrameStarted) % 228;
+      int newx = hpos < HBLANK ? 3 : (((hpos - HBLANK) + 5) % 160);
 
       // Find out under what condition the player is being reset
-      Int8 when = ourPlayerPositionResetWhenTable[myNUSIZ0 & 7][myPOSP0][newx];
+      int8_t when = ourPlayerPositionResetWhenTable[myNUSIZ0 & 7][myPOSP0][newx];
 
       // Player is being reset during the display of one of its copies
       if(when == 1)
@@ -2424,11 +2333,11 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x11:    // Reset Player 1
     {
-      Int32 hpos = (clock - myClockWhenFrameStarted) % 228;
-      Int32 newx = hpos < HBLANK ? 3 : (((hpos - HBLANK) + 5) % 160);
+      int hpos = (clock - myClockWhenFrameStarted) % 228;
+      int newx = hpos < HBLANK ? 3 : (((hpos - HBLANK) + 5) % 160);
 
       // Find out under what condition the player is being reset
-      Int8 when = ourPlayerPositionResetWhenTable[myNUSIZ1 & 7][myPOSP1][newx];
+      int8_t when = ourPlayerPositionResetWhenTable[myNUSIZ1 & 7][myPOSP1][newx];
 
       // Player is being reset during the display of one of its copies
       if(when == 1)
@@ -2472,13 +2381,13 @@ void TIA::poke(uInt16 addr, uInt8 value)
       myPOSM0 = hpos < HBLANK ? 2 : (((hpos - HBLANK) + 4) % 160);
 
       // TODO: Remove the following special hack for Dolphin by
-      // figuring out what really happens when Reset Missle 
+      // figuring out what really happens when Reset Missle
       // occurs 20 cycles after an HMOVE (04/13/02).
       if(((clock - myLastHMOVEClock) == (20 * 3)) && (hpos == 69))
       {
         myPOSM0 = 8;
       }
- 
+
       myCurrentM0Mask = &ourMissleMaskTable[myPOSM0 & 0x03]
           [myNUSIZ0 & 0x07][(myNUSIZ0 & 0x30) >> 4][160 - (myPOSM0 & 0xFC)];
       break;
@@ -2490,13 +2399,13 @@ void TIA::poke(uInt16 addr, uInt8 value)
       myPOSM1 = hpos < HBLANK ? 2 : (((hpos - HBLANK) + 4) % 160);
 
       // TODO: Remove the following special hack for Pitfall II by
-      // figuring out what really happens when Reset Missle 
+      // figuring out what really happens when Reset Missle
       // occurs 3 cycles after an HMOVE (04/13/02).
       if(((clock - myLastHMOVEClock) == (3 * 3)) && (hpos == 18))
       {
         myPOSM1 = 3;
       }
- 
+
       myCurrentM1Mask = &ourMissleMaskTable[myPOSM1 & 0x03]
           [myNUSIZ1 & 0x07][(myNUSIZ1 & 0x30) >> 4][160 - (myPOSM1 & 0xFC)];
       break;
@@ -2507,36 +2416,36 @@ void TIA::poke(uInt16 addr, uInt8 value)
       int hpos = (clock - myClockWhenFrameStarted) % 228 ;
       myPOSBL = hpos < HBLANK ? 2 : (((hpos - HBLANK) + 4) % 160);
 
-      // TODO: Remove the following special hack for Escape from the 
-      // Mindmaster by figuring out what really happens when Reset Ball 
+      // TODO: Remove the following special hack for Escape from the
+      // Mindmaster by figuring out what really happens when Reset Ball
       // occurs 18 cycles after an HMOVE (01/09/99).
-      if(((clock - myLastHMOVEClock) == (18 * 3)) && 
+      if(((clock - myLastHMOVEClock) == (18 * 3)) &&
           ((hpos == 60) || (hpos == 69)))
       {
         myPOSBL = 10;
       }
       // TODO: Remove the following special hack for Decathlon by
-      // figuring out what really happens when Reset Ball 
+      // figuring out what really happens when Reset Ball
       // occurs 3 cycles after an HMOVE (04/13/02).
       else if(((clock - myLastHMOVEClock) == (3 * 3)) && (hpos == 18))
       {
         myPOSBL = 3;
-      } 
+      }
       // TODO: Remove the following special hack for Robot Tank by
-      // figuring out what really happens when Reset Ball 
+      // figuring out what really happens when Reset Ball
       // occurs 7 cycles after an HMOVE (04/13/02).
       else if(((clock - myLastHMOVEClock) == (7 * 3)) && (hpos == 30))
       {
         myPOSBL = 6;
-      } 
+      }
       // TODO: Remove the following special hack for Hole Hunter by
-      // figuring out what really happens when Reset Ball 
+      // figuring out what really happens when Reset Ball
       // occurs 6 cycles after an HMOVE (04/13/02).
       else if(((clock - myLastHMOVEClock) == (6 * 3)) && (hpos == 27))
       {
         myPOSBL = 5;
       }
- 
+
       myCurrentBLMask = &ourBallMaskTable[myPOSBL & 0x03]
           [(myCTRLPF & 0x30) >> 4][160 - (myPOSBL & 0xFC)];
       break;
@@ -2548,35 +2457,35 @@ void TIA::poke(uInt16 addr, uInt8 value)
       mySound->set(addr, value, mySystem->cycles());
       break;
     }
-  
+
     case 0x16:    // Audio control 1
     {
       myAUDC1 = value & 0x0f;
       mySound->set(addr, value, mySystem->cycles());
       break;
     }
-  
+
     case 0x17:    // Audio frequency 0
     {
       myAUDF0 = value & 0x1f;
       mySound->set(addr, value, mySystem->cycles());
       break;
     }
-  
+
     case 0x18:    // Audio frequency 1
     {
       myAUDF1 = value & 0x1f;
       mySound->set(addr, value, mySystem->cycles());
       break;
     }
-  
+
     case 0x19:    // Audio volume 0
     {
       myAUDV0 = value & 0x0f;
       mySound->set(addr, value, mySystem->cycles());
       break;
     }
-  
+
     case 0x1A:    // Audio volume 1
     {
       myAUDV1 = value & 0x0f;
@@ -2593,12 +2502,12 @@ void TIA::poke(uInt16 addr, uInt8 value)
       myDGRP1 = myGRP1;
 
       // Get the "current" data for GRP0 base on delay register and reflect
-      uInt8 grp0 = myVDELP0 ? myDGRP0 : myGRP0;
-      myCurrentGRP0 = myREFP0 ? ourPlayerReflectTable[grp0] : grp0; 
+      uint8_t grp0 = myVDELP0 ? myDGRP0 : myGRP0;
+      myCurrentGRP0 = myREFP0 ? ourPlayerReflectTable[grp0] : grp0;
 
       // Get the "current" data for GRP1 base on delay register and reflect
-      uInt8 grp1 = myVDELP1 ? myDGRP1 : myGRP1;
-      myCurrentGRP1 = myREFP1 ? ourPlayerReflectTable[grp1] : grp1; 
+      uint8_t grp1 = myVDELP1 ? myDGRP1 : myGRP1;
+      myCurrentGRP1 = myREFP1 ? ourPlayerReflectTable[grp1] : grp1;
 
       // Set enabled object bits
       if(myCurrentGRP0 != 0)
@@ -2626,12 +2535,12 @@ void TIA::poke(uInt16 addr, uInt8 value)
       myDENABL = myENABL;
 
       // Get the "current" data for GRP0 base on delay register
-      uInt8 grp0 = myVDELP0 ? myDGRP0 : myGRP0;
-      myCurrentGRP0 = myREFP0 ? ourPlayerReflectTable[grp0] : grp0; 
+      uint8_t grp0 = myVDELP0 ? myDGRP0 : myGRP0;
+      myCurrentGRP0 = myREFP0 ? ourPlayerReflectTable[grp0] : grp0;
 
       // Get the "current" data for GRP1 base on delay register
-      uInt8 grp1 = myVDELP1 ? myDGRP1 : myGRP1;
-      myCurrentGRP1 = myREFP1 ? ourPlayerReflectTable[grp1] : grp1; 
+      uint8_t grp1 = myVDELP1 ? myDGRP1 : myGRP1;
+      myCurrentGRP1 = myREFP1 ? ourPlayerReflectTable[grp1] : grp1;
 
       // Set enabled object bits
       if(myCurrentGRP0 != 0)
@@ -2700,7 +2609,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
 
     case 0x22:    // Horizontal Motion Missle 0
     {
-      Int8 tmp = value >> 4;
+      int8_t tmp = value >> 4;
 
       // Should we enabled TIA M0 "bug" used for stars in Cosmic Ark?
       if((clock == (myLastHMOVEClock + 21 * 3)) && (myHMM0 == 7) && (tmp == 6))
@@ -2729,8 +2638,8 @@ void TIA::poke(uInt16 addr, uInt8 value)
     {
       myVDELP0 = value & 0x01;
 
-      uInt8 grp0 = myVDELP0 ? myDGRP0 : myGRP0;
-      myCurrentGRP0 = myREFP0 ? ourPlayerReflectTable[grp0] : grp0; 
+      uint8_t grp0 = myVDELP0 ? myDGRP0 : myGRP0;
+      myCurrentGRP0 = myREFP0 ? ourPlayerReflectTable[grp0] : grp0;
 
       if(myCurrentGRP0 != 0)
         myEnabledObjects |= myP0Bit;
@@ -2743,8 +2652,8 @@ void TIA::poke(uInt16 addr, uInt8 value)
     {
       myVDELP1 = value & 0x01;
 
-      uInt8 grp1 = myVDELP1 ? myDGRP1 : myGRP1;
-      myCurrentGRP1 = myREFP1 ? ourPlayerReflectTable[grp1] : grp1; 
+      uint8_t grp1 = myVDELP1 ? myDGRP1 : myGRP1;
+      myCurrentGRP1 = myREFP1 ? ourPlayerReflectTable[grp1] : grp1;
 
       if(myCurrentGRP1 != 0)
         myEnabledObjects |= myP1Bit;
@@ -2768,7 +2677,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
     {
       if(myRESMP0 && !(value & 0x02))
       {
-        uInt16 middle;
+        uint16_t middle;
 
         if((myNUSIZ0 & 0x07) == 0x05)
           middle = 8;
@@ -2796,7 +2705,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
     {
       if(myRESMP1 && !(value & 0x02))
       {
-        uInt16 middle;
+        uint16_t middle;
 
         if((myNUSIZ1 & 0x07) == 0x05)
           middle = 8;
@@ -2822,7 +2731,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
     case 0x2A:    // Apply horizontal motion
     {
       // Figure out what cycle we're at
-      Int32 x = ((clock - myClockWhenFrameStarted) % 228) / 3;
+      int x = ((clock - myClockWhenFrameStarted) % 228) / 3;
 
       // See if we need to enable the HMOVE blank bug
       if(myAllowHMOVEBlanks && ourHMOVEBlankEnableCycles[x])
@@ -2902,7 +2811,7 @@ void TIA::poke(uInt16 addr, uInt8 value)
     default:
     {
 #ifdef DEBUG_ACCESSES
-      ale::Logger::Info << "BAD TIA Poke: " << hex << addr << endl;
+      ale::Logger::Info << "BAD TIA Poke: " << hex << addr << std::endl;
 #endif
       break;
     }
@@ -2910,16 +2819,16 @@ void TIA::poke(uInt16 addr, uInt8 value)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 TIA::ourBallMaskTable[4][4][320];
+uint8_t TIA::ourBallMaskTable[4][4][320];
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt16 TIA::ourCollisionTable[64];
+uint16_t TIA::ourCollisionTable[64];
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 TIA::ourDisabledMaskTable[640];
+const uint8_t TIA::ourDisabledMaskTable[640] = {};
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-const Int16 TIA::ourPokeDelayTable[64] = {
+const int16_t TIA::ourPokeDelayTable[64] = {
    0,  1,  0,  0,  8,  8,  0,  0,  0,  0,  0,  1,  1, -1, -1, -1,
    0,  0,  8,  8,  0,  0,  0,  0,  0,  0,  0,  1,  1,  0,  0,  0,
    0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,
@@ -2927,7 +2836,7 @@ const Int16 TIA::ourPokeDelayTable[64] = {
 };
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 TIA::ourMissleMaskTable[4][8][4][320];
+uint8_t TIA::ourMissleMaskTable[4][8][4][320];
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 const bool TIA::ourHMOVEBlankEnableCycles[76] = {
@@ -2942,7 +2851,7 @@ const bool TIA::ourHMOVEBlankEnableCycles[76] = {
 };
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-const Int32 TIA::ourCompleteMotionTable[76][16] = {
+const int TIA::ourCompleteMotionTable[76][16] = {
   { 0, -1, -2, -3, -4, -5, -6, -7,  8,  7,  6,  5,  4,  3,  2,  1}, // HBLANK
   { 0, -1, -2, -3, -4, -5, -6, -7,  8,  7,  6,  5,  4,  3,  2,  1}, // HBLANK
   { 0, -1, -2, -3, -4, -5, -6, -7,  8,  7,  6,  5,  4,  3,  2,  1}, // HBLANK
@@ -2964,45 +2873,45 @@ const Int32 TIA::ourCompleteMotionTable[76][16] = {
   { 4,  4,  4,  4,  4,  4,  4,  4,  8,  7,  6,  5,  4,  4,  4,  4}, // HBLANK
   { 5,  5,  5,  5,  5,  5,  5,  5,  8,  7,  6,  5,  5,  5,  5,  5}, // HBLANK
   { 6,  6,  6,  6,  6,  6,  6,  6,  8,  7,  6,  6,  6,  6,  6,  6}, // HBLANK
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0,  0, -1, -2,  0,  0,  0,  0,  0,  0,  0,  0},    
-  { 0,  0,  0,  0,  0, -1, -2, -3,  0,  0,  0,  0,  0,  0,  0,  0},    
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0,  0, -1,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0,  0,  0, -1, -2,  0,  0,  0,  0,  0,  0,  0,  0},
   { 0,  0,  0,  0,  0, -1, -2, -3,  0,  0,  0,  0,  0,  0,  0,  0},
-  { 0,  0,  0,  0, -1, -2, -3, -4,  0,  0,  0,  0,  0,  0,  0,  0}, 
+  { 0,  0,  0,  0,  0, -1, -2, -3,  0,  0,  0,  0,  0,  0,  0,  0},
+  { 0,  0,  0,  0, -1, -2, -3, -4,  0,  0,  0,  0,  0,  0,  0,  0},
   { 0,  0,  0, -1, -2, -3, -4, -5,  0,  0,  0,  0,  0,  0,  0,  0},
   { 0,  0, -1, -2, -3, -4, -5, -6,  0,  0,  0,  0,  0,  0,  0,  0},
   { 0,  0, -1, -2, -3, -4, -5, -6,  0,  0,  0,  0,  0,  0,  0,  0},
@@ -3010,7 +2919,7 @@ const Int32 TIA::ourCompleteMotionTable[76][16] = {
   {-1, -2, -3, -4, -5, -6, -7, -8,  0,  0,  0,  0,  0,  0,  0,  0},
   {-2, -3, -4, -5, -6, -7, -8, -9,  0,  0,  0,  0,  0,  0,  0, -1},
   {-2, -3, -4, -5, -6, -7, -8, -9,  0,  0,  0,  0,  0,  0,  0, -1},
-  {-3, -4, -5, -6, -7, -8, -9,-10,  0,  0,  0,  0,  0,  0, -1, -2}, 
+  {-3, -4, -5, -6, -7, -8, -9,-10,  0,  0,  0,  0,  0,  0, -1, -2},
   {-4, -5, -6, -7, -8, -9,-10,-11,  0,  0,  0,  0,  0, -1, -2, -3},
   {-5, -6, -7, -8, -9,-10,-11,-12,  0,  0,  0,  0, -1, -2, -3, -4},
   {-5, -6, -7, -8, -9,-10,-11,-12,  0,  0,  0,  0, -1, -2, -3, -4},
@@ -3022,16 +2931,16 @@ const Int32 TIA::ourCompleteMotionTable[76][16] = {
 };
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 TIA::ourPlayerMaskTable[4][2][8][320];
+uint8_t TIA::ourPlayerMaskTable[4][2][8][320];
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Int8 TIA::ourPlayerPositionResetWhenTable[8][160][160];
+int8_t TIA::ourPlayerPositionResetWhenTable[8][160][160];
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 TIA::ourPlayerReflectTable[256];
+uint8_t TIA::ourPlayerReflectTable[256];
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt32 TIA::ourPlayfieldTable[2][160];
+uint32_t TIA::ourPlayfieldTable[2][160];
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 TIA::TIA(const TIA& c)
@@ -3056,10 +2965,10 @@ TIA& TIA::operator = (const TIA&)
 
 // MGB
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
+inline void TIA::updateFrameScanlineFast(uint32_t clocksToUpdate, uint32_t hpos)
 {
   // Calculate the ending frame pointer value
-  uInt8* ending = myFramePointer + clocksToUpdate;
+  uint8_t* ending = myFramePointer + clocksToUpdate;
 
   // See if we're in the vertical blank region
   if(myVBLANK & 0x02)
@@ -3071,7 +2980,7 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
   {
     switch(myEnabledObjects | myPlayfieldPriorityAndScore)
     {
-      // Background 
+      // Background
       case 0x00:
       case 0x00 | ScoreBit:
       case 0x00 | PriorityBit:
@@ -3083,23 +2992,23 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       break;
 
       // Playfield is enabled and the score bit is not set
-      case myPFBit: 
+      case myPFBit:
       case myPFBit | PriorityBit:
       /* @strip
       {
-        uInt32* mask = &myCurrentPFMask[hpos];
+        const uint32_t* mask = &myCurrentPFMask[hpos];
 
-        // Update a uInt8 at a time until reaching a uInt32 boundary
+        // Update a uint8_t at a time until reaching a uint32_t boundary
         for(; ((uintptr_t)myFramePointer & 0x03) && (myFramePointer < ending);
             ++myFramePointer, ++mask)
         {
           *myFramePointer = (myPF & *mask) ? myCOLUPF : myCOLUBK;
         }
 
-        // Now, update a uInt32 at a time
+        // Now, update a uint32_t at a time
         for(; myFramePointer < ending; myFramePointer += 4, mask += 4)
         {
-          *((uInt32*)myFramePointer) = (myPF & *mask) ? myCOLUPF : myCOLUBK;
+          *((uint32_t*)myFramePointer) = (myPF & *mask) ? myCOLUPF : myCOLUBK;
         }
         break;
       } */ break;
@@ -3108,21 +3017,21 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myPFBit | ScoreBit:
       case myPFBit | ScoreBit | PriorityBit:
       /* @strip {
-        uInt32* mask = &myCurrentPFMask[hpos];
+        const uint32_t* mask = &myCurrentPFMask[hpos];
 
-        // Update a uInt8 at a time until reaching a uInt32 boundary
-        for(; ((uintptr_t)myFramePointer & 0x03) && (myFramePointer < ending); 
+        // Update a uint8_t at a time until reaching a uint32_t boundary
+        for(; ((uintptr_t)myFramePointer & 0x03) && (myFramePointer < ending);
             ++myFramePointer, ++mask, ++hpos)
         {
-          *myFramePointer = (myPF & *mask) ? 
+          *myFramePointer = (myPF & *mask) ?
               (hpos < 80 ? myCOLUP0 : myCOLUP1) : myCOLUBK;
         }
 
-        // Now, update a uInt32 at a time
-        for(; myFramePointer < ending; 
+        // Now, update a uint32_t at a time
+        for(; myFramePointer < ending;
             myFramePointer += 4, mask += 4, hpos += 4)
         {
-          *((uInt32*)myFramePointer) = (myPF & *mask) ?
+          *((uint32_t*)myFramePointer) = (myPF & *mask) ?
               (hpos < 80 ? myCOLUP0 : myCOLUP1) : myCOLUBK;
         }
         break;
@@ -3135,13 +3044,13 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myP0Bit | PriorityBit:
       case myP0Bit | ScoreBit | PriorityBit:
       /* @strip {
-        uInt8* mP0 = &myCurrentP0Mask[hpos];
+        const uint8_t* mP0 = &myCurrentP0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP0)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mP0 += 4; myFramePointer += 4;
           }
           else
@@ -3159,13 +3068,13 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myP1Bit | PriorityBit:
       case myP1Bit | ScoreBit | PriorityBit:
       /* @strip {
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mP1 += 4; myFramePointer += 4;
           }
           else
@@ -3183,20 +3092,20 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myP0Bit | myP1Bit | PriorityBit:
       case myP0Bit | myP1Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mP0 = &myCurrentP0Mask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint8_t* mP0 = &myCurrentP0Mask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP0 &&
-              !*(uInt32*)mP1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP0 &&
+              !*(uint32_t*)mP1)
           {
-            // @strip *(uInt32*)myFramePointer = myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = myCOLUBK;
             mP0 += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            /* @strip *myFramePointer = (myCurrentGRP0 & *mP0) ? 
+            /* @strip *myFramePointer = (myCurrentGRP0 & *mP0) ?
                 myCOLUP0 : ((myCurrentGRP1 & *mP1) ? myCOLUP1 : myCOLUBK);
             */
 
@@ -3215,13 +3124,13 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myM0Bit | PriorityBit:
       case myM0Bit | ScoreBit | PriorityBit:
       /* @strip {
-        uInt8* mM0 = &myCurrentM0Mask[hpos];
+        const uint8_t* mM0 = &myCurrentM0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mM0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mM0)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mM0 += 4; myFramePointer += 4;
           }
           else
@@ -3230,7 +3139,7 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
             ++mM0; ++myFramePointer;
           }
         }
-        break; 
+        break;
       } */
       break;
 
@@ -3240,13 +3149,13 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myM1Bit | PriorityBit:
       case myM1Bit | ScoreBit | PriorityBit:
       /* @strip {
-        uInt8* mM1 = &myCurrentM1Mask[hpos];
+        const uint8_t* mM1 = &myCurrentM1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mM1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mM1)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mM1 += 4; myFramePointer += 4;
           }
           else
@@ -3256,7 +3165,7 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
           }
         }
         break;
-      } */ 
+      } */
       break;
 
       // Ball is enabled
@@ -3265,13 +3174,13 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | PriorityBit:
       case myBLBit | ScoreBit | PriorityBit:
       /* @strip {
-        uInt8* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL)
           {
-            *(uInt32*)myFramePointer = myCOLUBK;
+            *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; myFramePointer += 4;
           }
           else
@@ -3290,14 +3199,14 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myM0Bit | myM1Bit | PriorityBit:
       case myM0Bit | myM1Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mM0 = &myCurrentM0Mask[hpos];
-        uInt8* mM1 = &myCurrentM1Mask[hpos];
+        const uint8_t* mM0 = &myCurrentM0Mask[hpos];
+        const uint8_t* mM1 = &myCurrentM1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mM0 && !*(uInt32*)mM1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mM0 && !*(uint32_t*)mM1)
           {
-            // @strip *(uInt32*)myFramePointer = myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = myCOLUBK;
             mM0 += 4; mM1 += 4; myFramePointer += 4;
           }
           else
@@ -3317,14 +3226,14 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myM0Bit:
       case myBLBit | myM0Bit | ScoreBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mM0 = &myCurrentM0Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mM0 = &myCurrentM0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL && !*(uInt32*)mM0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL && !*(uint32_t*)mM0)
           {
-            // @strip *(uInt32*)myFramePointer = myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mM0 += 4; myFramePointer += 4;
           }
           else
@@ -3344,14 +3253,14 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myM0Bit | PriorityBit:
       case myBLBit | myM0Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mM0 = &myCurrentM0Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mM0 = &myCurrentM0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL && !*(uInt32*)mM0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL && !*(uint32_t*)mM0)
           {
-            // @strip *(uInt32*)myFramePointer = myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mM0 += 4; myFramePointer += 4;
           }
           else
@@ -3371,15 +3280,15 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myM1Bit:
       case myBLBit | myM1Bit | ScoreBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mM1 = &myCurrentM1Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mM1 = &myCurrentM1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL && 
-              !*(uInt32*)mM1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL &&
+              !*(uint32_t*)mM1)
           {
-            // @strip *(uInt32*)myFramePointer = myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mM1 += 4; myFramePointer += 4;
           }
           else
@@ -3399,15 +3308,15 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myM1Bit | PriorityBit:
       case myBLBit | myM1Bit | ScoreBit | PriorityBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mM1 = &myCurrentM1Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mM1 = &myCurrentM1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL && 
-              !*(uInt32*)mM1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL &&
+              !*(uint32_t*)mM1)
           {
-            // @strip *(uInt32*)myFramePointer = myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mM1 += 4; myFramePointer += 4;
           }
           else
@@ -3427,19 +3336,19 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myP1Bit:
       case myBLBit | myP1Bit | ScoreBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1 && !*(uInt32*)mBL)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1 && !*(uint32_t*)mBL)
           {
-            // @strip *(uInt32*)myFramePointer = myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            /* @strip *myFramePointer = (myCurrentGRP1 & *mP1) ? myCOLUP1 : 
+            /* @strip *myFramePointer = (myCurrentGRP1 & *mP1) ? myCOLUP1 :
                 (*mBL ? myCOLUPF : myCOLUBK); */
 
             if(*mBL && (myCurrentGRP1 & *mP1))
@@ -3455,19 +3364,19 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myBLBit | myP1Bit | PriorityBit:
       case myBLBit | myP1Bit | PriorityBit | ScoreBit:
       {
-        uInt8* mBL = &myCurrentBLMask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1 && !*(uInt32*)mBL)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1 && !*(uint32_t*)mBL)
           {
-            // @strip *(uInt32*)myFramePointer = myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = myCOLUBK;
             mBL += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            /* @strip *myFramePointer = *mBL ? myCOLUPF : 
+            /* @strip *myFramePointer = *mBL ? myCOLUPF :
                 ((myCurrentGRP1 & *mP1) ? myCOLUP1 : myCOLUBK); */
 
             if(*mBL && (myCurrentGRP1 & *mP1))
@@ -3482,19 +3391,19 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       // Playfield and Player 0 are enabled and playfield priority is not set
       case myPFBit | myP0Bit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mP0 = &myCurrentP0Mask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mP0 = &myCurrentP0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP0)
           {
-            // @strip *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mP0 += 4; myFramePointer += 4;
           }
           else
           {
-            /* @strip *myFramePointer = (myCurrentGRP0 & *mP0) ? 
+            /* @strip *myFramePointer = (myCurrentGRP0 & *mP0) ?
                   myCOLUP0 : ((myPF & *mPF) ? myCOLUPF : myCOLUBK); */
 
             if((myPF & *mPF) && (myCurrentGRP0 & *mP0))
@@ -3510,19 +3419,19 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       // Playfield and Player 0 are enabled and playfield priority is set
       case myPFBit | myP0Bit | PriorityBit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mP0 = &myCurrentP0Mask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mP0 = &myCurrentP0Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP0)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP0)
           {
-            // @strip *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mP0 += 4; myFramePointer += 4;
           }
           else
           {
-            /* @strip *myFramePointer = (myPF & *mPF) ? myCOLUPF : 
+            /* @strip *myFramePointer = (myPF & *mPF) ? myCOLUPF :
                 ((myCurrentGRP0 & *mP0) ? myCOLUP0 : myCOLUBK); */
 
             if((myPF & *mPF) && (myCurrentGRP0 & *mP0))
@@ -3538,20 +3447,20 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       // Playfield and Player 1 are enabled and playfield priority is not set
       case myPFBit | myP1Bit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1)
           {
-            // @strip *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            /* @strip *myFramePointer = (myCurrentGRP1 & *mP1) ? 
-                  myCOLUP1 : ((myPF & *mPF) ? myCOLUPF : myCOLUBK); */ 
+            /* @strip *myFramePointer = (myCurrentGRP1 & *mP1) ?
+                  myCOLUP1 : ((myPF & *mPF) ? myCOLUPF : myCOLUBK); */
 
             if((myPF & *mPF) && (myCurrentGRP1 & *mP1))
               myCollision |= ourCollisionTable[myPFBit | myP1Bit];
@@ -3566,19 +3475,19 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       // Playfield and Player 1 are enabled and playfield priority is set
       case myPFBit | myP1Bit | PriorityBit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mP1 = &myCurrentP1Mask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mP1 = &myCurrentP1Mask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mP1)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mP1)
           {
-            // @strip *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mP1 += 4; myFramePointer += 4;
           }
           else
           {
-            /* @strip *myFramePointer = (myPF & *mPF) ? myCOLUPF : 
+            /* @strip *myFramePointer = (myPF & *mPF) ? myCOLUPF :
                 ((myCurrentGRP1 & *mP1) ? myCOLUP1 : myCOLUBK); */
 
             if((myPF & *mPF) && (myCurrentGRP1 & *mP1))
@@ -3595,14 +3504,14 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       case myPFBit | myBLBit:
       case myPFBit | myBLBit | PriorityBit:
       {
-        uInt32* mPF = &myCurrentPFMask[hpos];
-        uInt8* mBL = &myCurrentBLMask[hpos];
+        const uint32_t* mPF = &myCurrentPFMask[hpos];
+        const uint8_t* mBL = &myCurrentBLMask[hpos];
 
         while(myFramePointer < ending)
         {
-          if(!((uintptr_t)myFramePointer & 0x03) && !*(uInt32*)mBL)
+          if(!((uintptr_t)myFramePointer & 0x03) && !*(uint32_t*)mBL)
           {
-            // @strip *(uInt32*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
+            // @strip *(uint32_t*)myFramePointer = (myPF & *mPF) ? myCOLUPF : myCOLUBK;
             mPF += 4; mBL += 4; myFramePointer += 4;
           }
           else
@@ -3623,7 +3532,7 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
       {
         for(; myFramePointer < ending; ++myFramePointer, ++hpos)
         {
-          uInt8 enabled = (myPF & myCurrentPFMask[hpos]) ? myPFBit : 0;
+          uint8_t enabled = (myPF & myCurrentPFMask[hpos]) ? myPFBit : 0;
 
           if((myEnabledObjects & myBLBit) && myCurrentBLMask[hpos])
             enabled |= myBLBit;
@@ -3644,10 +3553,12 @@ inline void TIA::updateFrameScanlineFast(uInt32 clocksToUpdate, uInt32 hpos)
           /* @strip *myFramePointer = myColor[myPriorityEncoder[hpos < 80 ? 0 : 1]
               [enabled | myPlayfieldPriorityAndScore]]; */
         }
-        break;  
+        break;
       }
     }
   }
   myFramePointer = ending;
 }
 
+}  // namespace stella
+}  // namespace ale

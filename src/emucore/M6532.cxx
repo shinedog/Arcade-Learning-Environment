@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -16,17 +16,20 @@
 // $Id: M6532.cxx,v 1.10 2007/06/21 12:27:00 stephena Exp $
 //============================================================================
 
-#include <assert.h>
-#include "Console.hxx"
-#include "M6532.hxx"
-#include "Switches.hxx"
-#include "System.hxx"
-#include "Serializer.hxx"
-#include "Deserializer.hxx"
-#include "OSystem.hxx"
 #include <iostream>
-using namespace std;
-#include "../common/Log.hpp"
+#include <cassert>
+
+#include "emucore/Console.hxx"
+#include "emucore/M6532.hxx"
+#include "emucore/Switches.hxx"
+#include "emucore/System.hxx"
+#include "emucore/Serializer.hxx"
+#include "emucore/Deserializer.hxx"
+#include "emucore/OSystem.hxx"
+#include "common/Log.hpp"
+
+namespace ale {
+namespace stella {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 M6532::M6532(const Console& console)
@@ -34,15 +37,15 @@ M6532::M6532(const Console& console)
 {
   // Randomize the 128 bytes of memory
 
-  for(uInt32 t = 0; t < 128; ++t)
+  for(uint32_t t = 0; t < 128; ++t)
   {
-    myRAM[t] = myConsole.osystem().rng().next();
+    myRAM[t] = myConsole.system().rng().next();
   }
 
   // Initialize other data members
   reset();
 }
- 
+
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 M6532::~M6532()
 {
@@ -53,11 +56,11 @@ const char* M6532::name() const
 {
   return "M6532";
 }
- 
+
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 void M6532::reset()
 {
-  myTimer = 25 + (myConsole.osystem().rng().next() % 75);
+  myTimer = 25 + (myConsole.system().rng().next() % 75);
   myIntervalShift = 6;
   myCyclesWhenTimerSet = 0;
   myCyclesWhenInterruptReset = 0;
@@ -83,12 +86,12 @@ void M6532::install(System& system)
   // Remember which system I'm installed in
   mySystem = &system;
 
-  uInt16 shift = mySystem->pageShift();
-  uInt16 mask = mySystem->pageMask();
+  uint16_t shift = mySystem->pageShift();
+  uint16_t mask = mySystem->pageMask();
 
   // Make sure the system we're being installed in has a page size that'll work
   assert((0x1080 & mask) == 0);
-  
+
   // All accesses are to this device
   System::PageAccess access;
   access.device = this;
@@ -106,7 +109,7 @@ void M6532::install(System& system)
       }
       else
       {
-        access.directPeekBase = 0; 
+        access.directPeekBase = 0;
         access.directPokeBase = 0;
         mySystem->setPageAccess(address >> shift, access);
       }
@@ -115,13 +118,13 @@ void M6532::install(System& system)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-uInt8 M6532::peek(uInt16 addr)
+uint8_t M6532::peek(uint16_t addr)
 {
   switch(addr & 0x07)
   {
     case 0x00:    // Port A I/O Register (Joystick)
     {
-      uInt8 value = 0x00;
+      uint8_t value = 0x00;
 
       if(myConsole.controller(Controller::Left).read(Controller::One))
         value |= 0x10;
@@ -144,7 +147,7 @@ uInt8 M6532::peek(uInt16 addr)
       return value;
     }
 
-    case 0x01:    // Port A Data Direction Register 
+    case 0x01:    // Port A Data Direction Register
     {
       return myDDRA;
     }
@@ -162,18 +165,18 @@ uInt8 M6532::peek(uInt16 addr)
     case 0x04:    // Timer Output
     case 0x06:
     {
-      uInt32 cycles = mySystem->cycles() - 1;
-      uInt32 delta = cycles - myCyclesWhenTimerSet;
-      Int32 timer = (Int32)myTimer - (Int32)(delta >> myIntervalShift) - 1;
+      uint32_t cycles = mySystem->cycles() - 1;
+      uint32_t delta = cycles - myCyclesWhenTimerSet;
+      int timer = (int)myTimer - (int)(delta >> myIntervalShift) - 1;
 
       // See if the timer has expired yet?
       if(timer >= 0)
       {
-        return (uInt8)timer; 
+        return (uint8_t)timer;
       }
       else
       {
-        timer = (Int32)(myTimer << myIntervalShift) - (Int32)delta - 1;
+        timer = (int)(myTimer << myIntervalShift) - (int)delta - 1;
 
         if((timer <= -2) && !myTimerReadAfterInterrupt)
         {
@@ -184,22 +187,22 @@ uInt8 M6532::peek(uInt16 addr)
 
         if(myTimerReadAfterInterrupt)
         {
-          Int32 offset = myCyclesWhenInterruptReset - 
+          int offset = myCyclesWhenInterruptReset -
               (myCyclesWhenTimerSet + (myTimer << myIntervalShift));
 
-          timer = (Int32)myTimer - (Int32)(delta >> myIntervalShift) - offset;
+          timer = (int)myTimer - (int)(delta >> myIntervalShift) - offset;
         }
 
-        return (uInt8)timer;
+        return (uint8_t)timer;
       }
     }
 
     case 0x05:    // Interrupt Flag
     case 0x07:
     {
-      uInt32 cycles = mySystem->cycles() - 1;
-      uInt32 delta = cycles - myCyclesWhenTimerSet;
-      Int32 timer = (Int32)myTimer - (Int32)(delta >> myIntervalShift) - 1;
+      uint32_t cycles = mySystem->cycles() - 1;
+      uint32_t delta = cycles - myCyclesWhenTimerSet;
+      int timer = (int)myTimer - (int)(delta >> myIntervalShift) - 1;
 
       if((timer >= 0) || myTimerReadAfterInterrupt)
         return 0x00;
@@ -208,9 +211,9 @@ uInt8 M6532::peek(uInt16 addr)
     }
 
     default:
-    {    
+    {
 #ifdef DEBUG_ACCESSES
-      ale::Logger::Error << "BAD M6532 Peek: " << hex << addr << endl;
+      ale::Logger::Error << "BAD M6532 Peek: " << hex << addr << std::endl;
 #endif
       return 0;
     }
@@ -218,51 +221,25 @@ uInt8 M6532::peek(uInt16 addr)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-void M6532::poke(uInt16 addr, uInt8 value)
+void M6532::poke(uint16_t addr, uint8_t value)
 {
   if((addr & 0x07) == 0x00)         // Port A I/O Register (Joystick)
   {
-    uInt8 a = value & myDDRA;
+    uint8_t a = value & myDDRA;
 
     myConsole.controller(Controller::Left).write(Controller::One, a & 0x10);
     myConsole.controller(Controller::Left).write(Controller::Two, a & 0x20);
     myConsole.controller(Controller::Left).write(Controller::Three, a & 0x40);
     myConsole.controller(Controller::Left).write(Controller::Four, a & 0x80);
-    
+
     myConsole.controller(Controller::Right).write(Controller::One, a & 0x01);
     myConsole.controller(Controller::Right).write(Controller::Two, a & 0x02);
     myConsole.controller(Controller::Right).write(Controller::Three, a & 0x04);
     myConsole.controller(Controller::Right).write(Controller::Four, a & 0x08);
   }
-  else if((addr & 0x07) == 0x01)    // Port A Data Direction Register 
+  else if((addr & 0x07) == 0x01)    // Port A Data Direction Register
   {
     myDDRA = value;
-#ifdef ATARIVOX_SUPPORT
-     /*
-    20060608 bkw: Not the most elegant thing in the world...
-     When a bit in the DDR is set as input, +5V is placed on its output
-     pin. When it's set as output, either +5V or 0V (depending on the
-     contents of SWCHA) will be placed on the output pin.
-     The standard macros for the AtariVox use this fact to send data
-     to the port.
-
-     This code isn't 100% correct: it assumes the SWCHA bits are all 0.
-     This is good enough to emulate the AtariVox, if the programmer is
-     using SWACNT to do output (e.g. the SPKOUT macro from speakjet.inc)
-     and if he's leaving SWCHA alone.
-
-     The inaccuracy here means that wrongly-written code will still
-     be able to drive the emulated AtariVox, even though it wouldn't
-     work on real hardware.
-     */
-    Controller &c = myConsole.controller(Controller::Right);
-     if(c.type() == Controller::AtariVox) {
-      c.write(Controller::One, !(value & 0x01));
-      c.write(Controller::Two, !(value & 0x02));
-      c.write(Controller::Three, !(value & 0x04));
-      c.write(Controller::Four, !(value & 0x08));
-     }
-#endif
   }
   else if((addr & 0x07) == 0x02)    // Port B I/O Register (Console switches)
   {
@@ -273,7 +250,7 @@ void M6532::poke(uInt16 addr, uInt8 value)
 //        myDDRB = value;
     return;
   }
-  else if((addr & 0x17) == 0x14)    // Write timer divide by 1 
+  else if((addr & 0x17) == 0x14)    // Write timer divide by 1
   {
     myTimer = value;
     myIntervalShift = 0;
@@ -308,13 +285,13 @@ void M6532::poke(uInt16 addr, uInt8 value)
                        << ((addr & 0x02) ? "PA7 enabled" : "PA7 disabled")
                        << ", "
                        << ((addr & 0x01) ? "Positive edge" : "Negative edge")
-                       << endl;
+                       << std::endl;
 #endif
   }
   else
   {
 #ifdef DEBUG_ACCESSES
-    ale::Logger::Error << "BAD M6532 Poke: " << hex << addr << endl;
+    ale::Logger::Error << "BAD M6532 Poke: " << hex << addr << std::endl;
 #endif
   }
 }
@@ -322,7 +299,7 @@ void M6532::poke(uInt16 addr, uInt8 value)
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 bool M6532::save(Serializer& out)
 {
-  string device = name();
+  std::string device = name();
 
   try
   {
@@ -330,7 +307,7 @@ bool M6532::save(Serializer& out)
 
     // Output the RAM
     out.putInt(128);
-    for(uInt32 t = 0; t < 128; ++t)
+    for(uint32_t t = 0; t < 128; ++t)
       out.putInt(myRAM[t]);
 
     out.putInt(myTimer);
@@ -343,12 +320,12 @@ bool M6532::save(Serializer& out)
   }
   catch(char *msg)
   {
-    ale::Logger::Error << msg << endl;
+    ale::Logger::Error << msg << std::endl;
     return false;
   }
   catch(...)
   {
-    ale::Logger::Error << "Unknown error in save state for " << device << endl;
+    ale::Logger::Error << "Unknown error in save state for " << device << std::endl;
     return false;
   }
 
@@ -358,7 +335,7 @@ bool M6532::save(Serializer& out)
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 bool M6532::load(Deserializer& in)
 {
-  string device = name();
+  std::string device = name();
 
   try
   {
@@ -366,27 +343,27 @@ bool M6532::load(Deserializer& in)
       return false;
 
     // Input the RAM
-    uInt32 limit = (uInt32) in.getInt();
-    for(uInt32 t = 0; t < limit; ++t)
-      myRAM[t] = (uInt8) in.getInt();
+    uint32_t limit = (uint32_t) in.getInt();
+    for(uint32_t t = 0; t < limit; ++t)
+      myRAM[t] = (uint8_t) in.getInt();
 
-    myTimer = (uInt32) in.getInt();
-    myIntervalShift = (uInt32) in.getInt();
-    myCyclesWhenTimerSet = (uInt32) in.getInt();
-    myCyclesWhenInterruptReset = (uInt32) in.getInt();
+    myTimer = (uint32_t) in.getInt();
+    myIntervalShift = (uint32_t) in.getInt();
+    myCyclesWhenTimerSet = (uint32_t) in.getInt();
+    myCyclesWhenInterruptReset = (uint32_t) in.getInt();
     myTimerReadAfterInterrupt = in.getBool();
 
-    myDDRA = (uInt8) in.getInt();
-    myDDRB = (uInt8) in.getInt();
+    myDDRA = (uint8_t) in.getInt();
+    myDDRB = (uint8_t) in.getInt();
   }
   catch(char *msg)
   {
-    ale::Logger::Error << msg << endl;
+    ale::Logger::Error << msg << std::endl;
     return false;
   }
   catch(...)
   {
-    ale::Logger::Error << "Unknown error in load state for " << device << endl;
+    ale::Logger::Error << "Unknown error in load state for " << device << std::endl;
     return false;
   }
 
@@ -408,4 +385,6 @@ M6532& M6532::operator = (const M6532&)
 
   return *this;
 }
- 
+
+}  // namespace stella
+}  // namespace ale

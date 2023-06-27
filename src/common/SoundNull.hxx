@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -19,12 +19,19 @@
 #ifndef SOUND_NULL_HXX
 #define SOUND_NULL_HXX
 
-class OSystem;
+namespace ale {
+namespace stella {
+
+class Settings;
 class Serializer;
 class Deserializer;
 
-#include "../emucore/m6502/src/bspf/src/bspf.hxx"
-#include "../emucore/Sound.hxx"
+}  // namespace stella
+}  // namespace ale
+
+#include "emucore/Sound.hxx"
+
+namespace ale {
 
 /**
   This class implements a Null sound object, where-by sound generation
@@ -33,21 +40,21 @@ class Deserializer;
   @author Stephen Anthony
   @version $Id: SoundNull.hxx,v 1.6 2007/01/01 18:04:40 stephena Exp $
 */
-class SoundNull : public Sound
+class SoundNull : public stella::Sound
 {
   public:
     /**
       Create a new sound object.  The init method must be invoked before
       using the object.
     */
-    SoundNull(OSystem* osystem);
+    SoundNull(stella::Settings* settings);
 
     /**
       Destructor
     */
     virtual ~SoundNull();
 
-  public: 
+  public:
     /**
       Enables/disables the sound subsystem.
 
@@ -62,14 +69,14 @@ class SoundNull : public Sound
 
       @param amount The amount the cycle counter is being adjusted by
     */
-    void adjustCycleCounter(Int32) { }
+    void adjustCycleCounter(int) { }
 
     /**
       Sets the number of channels (mono or stereo sound).
 
       @param channels The number of channels
     */
-    void setChannels(uInt32) { }
+    void setChannels(uint32_t) { }
 
     /**
       Sets the display framerate.  Sound generation for NTSC and PAL games
@@ -77,7 +84,7 @@ class SoundNull : public Sound
 
       @param framerate The base framerate depending on NTSC or PAL ROM
     */
-    void setFrameRate(uInt32) { }
+    void setFrameRate(uint32_t) { }
 
     /**
       Initializes the sound device.  This must be called before any
@@ -117,7 +124,7 @@ class SoundNull : public Sound
       @param value The value to save into the register
       @param cycle The system cycle at which the register is being updated
     */
-    void set(uInt16, uInt8, Int32) { }
+    void set(uint16_t, uint8_t, int) { }
 
     /**
       Sets the volume of the sound device to the specified level.  The
@@ -126,7 +133,7 @@ class SoundNull : public Sound
 
       @param percent The new volume percentage level for the sound device
     */
-    void setVolume(Int32) { }
+    void setVolume(int) { }
 
     /**
       Adjusts the volume of the sound device based on the given direction.
@@ -134,7 +141,7 @@ class SoundNull : public Sound
       @param direction  Increase or decrease the current volume by a predefined
                         amount based on the direction (1 = increase, -1 =decrease)
     */
-    void adjustVolume(Int8) { }
+    void adjustVolume(int8_t) { }
 
     /**
       * Tells the sound engine to record one frame's worth of sound.
@@ -148,7 +155,7 @@ public:
       @param in The deserializer device to load from.
       @return The result of the load.  True on success, false on failure.
     */
-    bool load(Deserializer& in);
+    bool load(stella::Deserializer& in);
 
     /**
       Saves the current state of this device to the given Serializer.
@@ -156,7 +163,9 @@ public:
       @param out The serializer device to save to.
       @return The result of the save.  True on success, false on failure.
     */
-    bool save(Serializer& out);
+    bool save(stella::Serializer& out);
 };
+
+}  // namespace ale
 
 #endif

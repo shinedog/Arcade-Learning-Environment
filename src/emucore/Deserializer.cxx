@@ -1,8 +1,8 @@
 //============================================================================
 //
-//   SSSS    tt          lll  lll       
-//  SS  SS   tt           ll   ll        
-//  SS     tttttt  eeee   ll   ll   aaaa 
+//   SSSS    tt          lll  lll
+//  SS  SS   tt           ll   ll
+//  SS     tttttt  eeee   ll   ll   aaaa
 //   SSSS    tt   ee  ee  ll   ll      aa
 //      SS   tt   eeeeee  ll   ll   aaaaa  --  "An Atari 2600 VCS Emulator"
 //  SS  SS   tt   ee      ll   ll  aa  aa
@@ -16,14 +16,16 @@
 // $Id: Deserializer.cxx,v 1.12 2007/01/01 18:04:47 stephena Exp $
 //============================================================================
 
-#include "Deserializer.hxx"
+#include "emucore/Deserializer.hxx"
 #include <sstream>
-using namespace std;
+
+namespace ale {
+namespace stella {
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-Deserializer::Deserializer(const string stream_str):
+Deserializer::Deserializer(const std::string stream_str):
 myStream(stream_str) {
-    
+
 }
 
 
@@ -53,12 +55,12 @@ int Deserializer::getInt(void)
 }
 
 // - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
-string Deserializer::getString(void)
+std::string Deserializer::getString(void)
 {
   int len = getInt();
-  string str;
-  str.resize((string::size_type)len);
-  myStream.read(&str[0], (streamsize)len);
+  std::string str;
+  str.resize((std::string::size_type)len);
+  myStream.read(&str[0], (std::streamsize)len);
 
   if(myStream.bad())
     throw "Deserializer: file read failed";
@@ -81,3 +83,6 @@ bool Deserializer::getBool(void)
 
   return result;
 }
+
+}  // namespace stella
+}  // namespace ale
